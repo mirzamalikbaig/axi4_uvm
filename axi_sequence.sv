@@ -10,61 +10,560 @@ class axi_sequence extends uvm_sequence #(axi_txn);
 
   `uvm_object_utils(axi_sequence)
 
-  function new(string name = "axi_sequence");
+
+  // =========================================================
+  // TEST SCENARIOS
+  // =========================================================
+
+  typedef enum {
+
+    MEM_SETUP,
+
+    DIFF_ID_READ,
+
+    SAME_ID_READ,
+
+    DIFF_ID_WRITE,
+
+    SAME_ID_WRITE,
+
+    WRITE_READBACK,
+
+    WRAP_WRITE,
+
+    WRAP_READ
+
+  } scenario_e;
+
+
+  scenario_e scenario;
+
+
+  // =========================================================
+  // CONSTRUCTOR
+  // =========================================================
+
+  function new(
+    string name = "axi_sequence"
+  );
+
     super.new(name);
+
   endfunction
 
+
+  // =========================================================
+  // HELPER:
+  // SINGLE-BEAT WRITE
+  //
+  // req_id / req_addr / req_data are intentionally named
+  // differently from transaction fields.
+  // =========================================================
+
+  task send_single_write(
+
+    string req_name,
+
+    bit [3:0] req_id,
+
+    bit [31:0] req_addr,
+
+    bit [31:0] req_data
+
+  );
+
+    axi_txn txn;
+
+
+    txn =
+      axi_txn::type_id::create(
+        req_name
+      );
+
+
+    start_item(txn);
+
+
+    assert(
+      txn.randomize() with {
+
+        op ==
+          axi_txn::AXI_WRITE;
+
+        id ==
+          req_id;
+
+        addr ==
+          req_addr;
+
+        len ==
+          0;
+
+        size ==
+          2;
+
+        burst ==
+          axi_txn::INCR;
+
+        write_data[0] ==
+          req_data;
+
+        wstrb[0] ==
+          4'b1111;
+
+      }
+    );
+
+
+    finish_item(txn);
+
+  endtask
+
+
+  // =========================================================
+  // HELPER:
+  // SINGLE-BEAT READ
+  // =========================================================
+
+  task send_single_read(
+
+    string req_name,
+
+    bit [3:0] req_id,
+
+    bit [31:0] req_addr
+
+  );
+
+    axi_txn txn;
+
+
+    txn =
+      axi_txn::type_id::create(
+        req_name
+      );
+
+
+    start_item(txn);
+
+
+    assert(
+      txn.randomize() with {
+
+        op ==
+          axi_txn::AXI_READ;
+
+        id ==
+          req_id;
+
+        addr ==
+          req_addr;
+
+        len ==
+          0;
+
+        size ==
+          2;
+
+        burst ==
+          axi_txn::INCR;
+
+      }
+    );
+
+
+    finish_item(txn);
+
+  endtask
+
+
+  // =========================================================
+  // BODY
+  // =========================================================
 
   task body();
 
     axi_txn txn;
-    axi_txn txn_1;
-    axi_txn txn_2;
-
-    // First transaction: fully constrained-random
-    txn = axi_txn::type_id::create("txn");
-
-    start_item(txn);
-
-    assert(txn.randomize());
-
-    finish_item(txn);
 
 
-    // Second transaction: directed single-beat write
-    txn_1 = axi_txn::type_id::create("txn_1");
+    case (scenario)
 
-    start_item(txn_1);
 
-    assert(txn_1.randomize() with {
-      op            == axi_txn::AXI_WRITE;
-      addr          == 32'd100;
-      len           == 0;
-      size          == 2;
-      burst         == axi_txn::INCR;
-      id            == 0;
-      write_data[0] == 32'd50;
-      wstrb[0]      == 4'b1111;
-    });
+      // =====================================================
+      // 1. MEMORY SETUP
+      //
+      // addr100 = 50
+      // addr200 = 75
+      // =====================================================
 
-    finish_item(txn_1);
-    
-    
-    txn_2 = axi_txn::type_id::create("txn_2");
+      MEM_SETUP: begin
 
-start_item(txn_2);
 
-assert(txn_2.randomize() with {
-    op    == axi_txn::AXI_READ;
-    addr  == 32'd100;
-    len   == 0;
-    size  == 2;
-    burst == axi_txn::INCR;
-    id    == 0;
-});
+        send_single_write(
+          "setup_wr_1",
+          4'd0,
+          32'd100,
+          32'd50
+        );
 
-finish_item(txn_2);
+
+        send_single_write(
+          "setup_wr_2",
+          4'd1,
+          32'd200,
+          32'd75
+        );
+
+
+      end
+
+
+      // =====================================================
+      // 2. DIFFERENT-ID READ
+      //
+      // AR request order:
+      //
+      // ID6 addr100
+      // ID3 addr200
+      //
+      // DUT intentionally allows:
+      //
+      // RID3 first
+      // RID6 second
+      // =====================================================
+
+      DIFF_ID_READ: begin
+
+
+        send_single_read(
+          "diff_rd_1",
+          4'd6,
+          32'd100
+        );
+
+
+        send_single_read(
+          "diff_rd_2",
+          4'd3,
+          32'd200
+        );
+
+
+      end
+
+
+      // =====================================================
+      // 3. SAME-ID READ
+      //
+      // Both ID5.
+      //
+      // Must preserve request order.
+      // =====================================================
+
+      SAME_ID_READ: begin
+
+
+        send_single_read(
+          "same_rd_1",
+          4'd5,
+          32'd100
+        );
+
+
+        send_single_read(
+          "same_rd_2",
+          4'd5,
+          32'd200
+        );
+
+
+      end
+
+
+      // =====================================================
+      // 4. DIFFERENT-ID WRITE
+      //
+      // AW:
+      //
+      // ID6 addr300 = 30
+      // ID3 addr400 = 40
+      //
+      // WDATA still follows AW order because AXI4 has no WID.
+      //
+      // B responses may complete:
+      //
+      // BID3
+      // BID6
+      // =====================================================
+
+      DIFF_ID_WRITE: begin
+
+
+        send_single_write(
+          "diff_wr_1",
+          4'd6,
+          32'd300,
+          32'd30
+        );
+
+
+        send_single_write(
+          "diff_wr_2",
+          4'd3,
+          32'd400,
+          32'd40
+        );
+
+
+      end
+
+
+      // =====================================================
+      // 5. SAME-ID WRITE
+      //
+      // Both ID5.
+      //
+      // B responses must preserve order.
+      // =====================================================
+
+      SAME_ID_WRITE: begin
+
+
+        send_single_write(
+          "same_wr_1",
+          4'd5,
+          32'd500,
+          32'd55
+        );
+
+
+        send_single_write(
+          "same_wr_2",
+          4'd5,
+          32'd600,
+          32'd65
+        );
+
+
+      end
+
+
+      // =====================================================
+      // 6. WRITE READBACK
+      //
+      // Verify:
+      //
+      // addr300 = 30
+      // addr400 = 40
+      // addr500 = 55
+      // addr600 = 65
+      // =====================================================
+
+      WRITE_READBACK: begin
+
+
+        send_single_read(
+          "rd_300",
+          4'd8,
+          32'd300
+        );
+
+
+        send_single_read(
+          "rd_400",
+          4'd9,
+          32'd400
+        );
+
+
+        send_single_read(
+          "rd_500",
+          4'd10,
+          32'd500
+        );
+
+
+        send_single_read(
+          "rd_600",
+          4'd11,
+          32'd600
+        );
+
+
+      end
+
+
+      // =====================================================
+      // 7. WRAP WRITE
+      //
+      // ADDR  = 12
+      // SIZE  = 2
+      //
+      // bytes per beat = 4
+      //
+      // LEN = 3
+      //
+      // beats = LEN + 1 = 4
+      //
+      // total wrap window =
+      //
+      // 4 bytes * 4 beats = 16 bytes
+      //
+      // Address sequence:
+      //
+      // 12 -> 0 -> 4 -> 8
+      //
+      // Data:
+      //
+      // addr12 = 10
+      // addr0  = 20
+      // addr4  = 30
+      // addr8  = 40
+      // =====================================================
+
+      WRAP_WRITE: begin
+
+
+        txn =
+          axi_txn::type_id::create(
+            "wrap_write"
+          );
+
+
+        start_item(txn);
+
+
+        assert(
+          txn.randomize() with {
+
+            op ==
+              axi_txn::AXI_WRITE;
+
+            id ==
+              4'd2;
+
+            addr ==
+              32'd12;
+
+            len ==
+              3;
+
+            size ==
+              2;
+
+            burst ==
+              axi_txn::WRAP;
+
+
+            write_data[0] ==
+              32'd10;
+
+            write_data[1] ==
+              32'd20;
+
+            write_data[2] ==
+              32'd30;
+
+            write_data[3] ==
+              32'd40;
+
+
+            wstrb[0] ==
+              4'b1111;
+
+            wstrb[1] ==
+              4'b1111;
+
+            wstrb[2] ==
+              4'b1111;
+
+            wstrb[3] ==
+              4'b1111;
+
+          }
+        );
+
+
+        finish_item(txn);
+
+
+      end
+
+
+      // =====================================================
+      // 8. WRAP READ
+      //
+      // Same WRAP:
+      //
+      // beat0 -> addr12 -> 10
+      // beat1 -> addr0  -> 20
+      // beat2 -> addr4  -> 30
+      // beat3 -> addr8  -> 40
+      // =====================================================
+
+      WRAP_READ: begin
+
+
+        txn =
+          axi_txn::type_id::create(
+            "wrap_read"
+          );
+
+
+        start_item(txn);
+
+
+        assert(
+          txn.randomize() with {
+
+            op ==
+              axi_txn::AXI_READ;
+
+            id ==
+              4'd4;
+
+            addr ==
+              32'd12;
+
+            len ==
+              3;
+
+            size ==
+              2;
+
+            burst ==
+              axi_txn::WRAP;
+
+          }
+        );
+
+
+        finish_item(txn);
+
+
+      end
+
+
+      // =====================================================
+      // UNKNOWN SCENARIO
+      // =====================================================
+
+      default: begin
+
+
+        `uvm_error(
+          "SEQ",
+          "Unknown sequence scenario"
+        )
+
+
+      end
+
+
+    endcase
+
 
   endtask
+
 
 endclass
