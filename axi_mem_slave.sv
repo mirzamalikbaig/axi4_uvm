@@ -7,309 +7,1410 @@
  *****************************************************************************/
 
 module axi_mem_slave #(
-    parameter int MEM_BYTES = 64*1024
+
+  parameter ADDR_WIDTH = 32,
+  parameter DATA_WIDTH = 32,
+  parameter ID_WIDTH   = 4,
+  parameter MEM_BYTES  = 64*1024
+
 )(
-    axi_if axi
+  axi_if axi
 );
 
-  // Byte-addressable memory
+
+  // =========================================================
+  // BYTE-ADDRESSABLE MEMORY
+  // =========================================================
+
   logic [7:0] mem [0:MEM_BYTES-1];
 
 
   // =========================================================
-  // Write-side state
+  // WRITE SLOTS
+  //
+  // Maximum 2 outstanding writes.
   // =========================================================
 
-  logic [3:0]  saved_wr_id;
-  logic [7:0]  saved_wr_len;
-  logic [2:0]  saved_wr_size;
-  logic [1:0]  saved_wr_burst;
+  logic [ID_WIDTH-1:0] wr_id    [0:1];
 
-  logic [31:0] wr_addr;
-  logic [7:0]  wr_beat_count;
+  logic [7:0]          wr_len   [0:1];
 
-  logic        write_active;
+  logic [2:0]          wr_size  [0:1];
 
+  logic [1:0]          wr_burst [0:1];
 
-  // =========================================================
-  // Read-side state
-  // =========================================================
+  logic [ADDR_WIDTH-1:0] wr_addr [0:1];
 
-  logic [3:0]  saved_rd_id;
-  logic [7:0]  saved_rd_len;
-  logic [2:0]  saved_rd_size;
-  logic [1:0]  saved_rd_burst;
+  logic [7:0]          wr_beat  [0:1];
 
-  logic [31:0] rd_addr;
-  logic [7:0]  rd_beat_count;
+  logic                wr_valid [0:1];
 
-  logic        read_active;
+  logic                wr_data_done [0:1];
+
+  logic [15:0]         wr_seq [0:1];
+
+  logic [15:0]         wr_next_seq;
 
 
-  // =========================================================
-  // READY generation
-  // =========================================================
+  // Which write currently owns W channel?
 
-  // Accept a new write address only when free
-  assign axi.awready =
-         axi.aresetn &&
-         !write_active;
+  logic wr_w_sel;
 
-  // Simple DUT:
-  // accept W only after AW has already been accepted
-  assign axi.wready =
-         axi.aresetn &&
-         write_active &&
-         !axi.bvalid;
+  logic wr_w_sel_valid;
 
-  // Accept new read address only when free
-  assign axi.arready =
-         axi.aresetn &&
-         !read_active;
+
+  // Which slot owns current B response?
+
+  logic b_sel;
+
+
+  int unsigned wr_wait_count;
+
+  localparam int WR_SINGLE_WAIT_CYCLES = 4;
 
 
   // =========================================================
-  // Sequential logic
+  // READ SLOTS
+  //
+  // Maximum 2 outstanding reads.
   // =========================================================
 
-  always_ff @(posedge axi.aclk or negedge axi.aresetn) begin
+  logic [ID_WIDTH-1:0] rd_id    [0:1];
+
+  logic [7:0]          rd_len   [0:1];
+
+  logic [2:0]          rd_size  [0:1];
+
+  logic [1:0]          rd_burst [0:1];
+
+  logic [ADDR_WIDTH-1:0] rd_addr [0:1];
+
+  logic [7:0]          rd_beat  [0:1];
+
+  logic                rd_valid [0:1];
+
+  logic [15:0]         rd_seq [0:1];
+
+  logic [15:0]         rd_next_seq;
+
+
+  // Slot currently driving R channel
+
+  logic r_sel;
+
+
+  int unsigned rd_wait_count;
+
+  localparam int RD_SINGLE_WAIT_CYCLES = 2;
+
+
+  // =========================================================
+  // ADDRESS CALCULATION
+  //
+  // Handles:
+  //
+  // FIXED
+  // INCR
+  // WRAP
+  // =========================================================
+
+  function automatic logic [ADDR_WIDTH-1:0]
+    calc_next_addr(
+
+      input logic [ADDR_WIDTH-1:0] current_addr,
+      input logic [7:0]            len,
+      input logic [2:0]            size,
+      input logic [1:0]            burst
+
+    );
+
+
+    longint unsigned bytes_per_beat;
+
+    longint unsigned beats;
+
+    longint unsigned total_bytes;
+
+    longint unsigned wrap_base;
+
+    longint unsigned wrap_limit;
+
+    longint unsigned next_address;
+
+
+    bytes_per_beat = (1 << size);
+
+
+    case (burst)
+
+
+      // -----------------------------------------------------
+      // FIXED
+      // -----------------------------------------------------
+
+      2'b00: begin
+
+        next_address =
+          current_addr;
+
+      end
+
+
+      // -----------------------------------------------------
+      // INCR
+      // -----------------------------------------------------
+
+      2'b01: begin
+
+        next_address =
+          current_addr +
+          bytes_per_beat;
+
+      end
+
+
+      // -----------------------------------------------------
+      // WRAP
+      // -----------------------------------------------------
+
+      2'b10: begin
+
+
+        beats = len;
+
+        beats = beats + 1;
+
+
+        total_bytes =
+          bytes_per_beat *
+          beats;
+
+
+        wrap_base =
+          (current_addr / total_bytes) *
+          total_bytes;
+
+
+        wrap_limit =
+          wrap_base +
+          total_bytes;
+
+
+        next_address =
+          current_addr +
+          bytes_per_beat;
+
+
+        if (next_address >= wrap_limit)
+
+          next_address =
+            wrap_base;
+
+      end
+
+
+      // -----------------------------------------------------
+      // RESERVED
+      // -----------------------------------------------------
+
+      default: begin
+
+        next_address =
+          current_addr;
+
+      end
+
+
+    endcase
+
+
+    calc_next_addr =
+      next_address[ADDR_WIDTH-1:0];
+
+
+  endfunction
+
+
+  // =========================================================
+  // MEMORY READ HELPER
+  // =========================================================
+
+  function automatic logic [31:0]
+    read_word(
+
+      input logic [ADDR_WIDTH-1:0] address
+
+    );
+
+
+    read_word = {
+
+      mem[address + 3],
+
+      mem[address + 2],
+
+      mem[address + 1],
+
+      mem[address + 0]
+
+    };
+
+
+  endfunction
+
+
+  // =========================================================
+  // W CHANNEL OWNER
+  //
+  // AXI4 has NO WID.
+  //
+  // Therefore the oldest AW whose W burst is unfinished
+  // owns the next W burst.
+  // =========================================================
+
+  always_comb begin
+
+
+    wr_w_sel       = 1'b0;
+
+    wr_w_sel_valid = 1'b0;
+
+
+    // Two writes waiting for WDATA
+
+    if (
+      wr_valid[0] &&
+      !wr_data_done[0] &&
+      wr_valid[1] &&
+      !wr_data_done[1]
+    ) begin
+
+
+      wr_w_sel_valid = 1'b1;
+
+
+      if (wr_seq[0] <= wr_seq[1])
+
+        wr_w_sel = 1'b0;
+
+      else
+
+        wr_w_sel = 1'b1;
+
+    end
+
+
+    // Only slot 0 needs WDATA
+
+    else if (
+      wr_valid[0] &&
+      !wr_data_done[0]
+    ) begin
+
+
+      wr_w_sel_valid = 1'b1;
+
+      wr_w_sel       = 1'b0;
+
+    end
+
+
+    // Only slot 1 needs WDATA
+
+    else if (
+      wr_valid[1] &&
+      !wr_data_done[1]
+    ) begin
+
+
+      wr_w_sel_valid = 1'b1;
+
+      wr_w_sel       = 1'b1;
+
+    end
+
+
+  end
+
+
+  // =========================================================
+  // READY SIGNALS
+  // =========================================================
+
+  always_comb begin
+
+
+    // Free write slot exists
+
+    axi.awready =
+      axi.aresetn &&
+      (
+        !wr_valid[0] ||
+        !wr_valid[1]
+      );
+
+
+    // At least one accepted AW needs WDATA
+
+    axi.wready =
+      axi.aresetn &&
+      wr_w_sel_valid;
+
+
+    // Free read slot exists
+
+    axi.arready =
+      axi.aresetn &&
+      (
+        !rd_valid[0] ||
+        !rd_valid[1]
+      );
+
+
+  end
+
+
+  // =========================================================
+  // MAIN STATE MACHINE
+  // =========================================================
+
+  always_ff @(
+    posedge axi.aclk or
+    negedge axi.aresetn
+  ) begin
+
+
+    // =======================================================
+    // RESET
+    // =======================================================
 
     if (!axi.aresetn) begin
 
-      // -------------------------
-      // Write reset
-      // -------------------------
 
-      saved_wr_id    <= '0;
-      saved_wr_len   <= '0;
-      saved_wr_size  <= '0;
-      saved_wr_burst <= '0;
-
-      wr_addr        <= '0;
-      wr_beat_count  <= '0;
-
-      write_active   <= 1'b0;
-
-      axi.bvalid     <= 1'b0;
-      axi.bid        <= '0;
-      axi.bresp      <= 2'b00;
+      wr_valid[0] <= 1'b0;
+      wr_valid[1] <= 1'b0;
 
 
-      // -------------------------
-      // Read reset
-      // -------------------------
+      wr_data_done[0] <= 1'b0;
+      wr_data_done[1] <= 1'b0;
 
-      saved_rd_id    <= '0;
-      saved_rd_len   <= '0;
-      saved_rd_size  <= '0;
-      saved_rd_burst <= '0;
 
-      rd_addr        <= '0;
-      rd_beat_count  <= '0;
+      wr_beat[0] <= '0;
+      wr_beat[1] <= '0;
 
-      read_active    <= 1'b0;
 
-      axi.rvalid     <= 1'b0;
-      axi.rid        <= '0;
-      axi.rdata      <= '0;
-      axi.rresp      <= 2'b00;
-      axi.rlast      <= 1'b0;
+      wr_next_seq <= '0;
+
+
+      wr_wait_count <= 0;
+
+
+      axi.bvalid <= 1'b0;
+      axi.bid    <= '0;
+      axi.bresp  <= 2'b00;
+
+      b_sel <= 1'b0;
+
+
+
+      rd_valid[0] <= 1'b0;
+      rd_valid[1] <= 1'b0;
+
+
+      rd_beat[0] <= '0;
+      rd_beat[1] <= '0;
+
+
+      rd_next_seq <= '0;
+
+
+      rd_wait_count <= 0;
+
+
+      axi.rvalid <= 1'b0;
+
+      axi.rid    <= '0;
+
+      axi.rdata  <= '0;
+
+      axi.rresp  <= 2'b00;
+
+      axi.rlast  <= 1'b0;
+
+
+      r_sel <= 1'b0;
+
 
     end
+
 
     else begin
 
 
       // =====================================================
-      // AW CHANNEL
+      // AW HANDSHAKE
       // =====================================================
 
-      if (axi.awvalid && axi.awready) begin
+      if (
+        axi.awvalid &&
+        axi.awready
+      ) begin
 
-        saved_wr_id    <= axi.awid;
-        saved_wr_len   <= axi.awlen;
-        saved_wr_size  <= axi.awsize;
-        saved_wr_burst <= axi.awburst;
 
-        wr_addr        <= axi.awaddr;
-        wr_beat_count  <= 0;
+        // ---------------------------------------------------
+        // Allocate slot 0
+        // ---------------------------------------------------
 
-        write_active   <= 1'b1;
+        if (!wr_valid[0]) begin
+
+
+          wr_valid[0] <= 1'b1;
+
+          wr_data_done[0] <= 1'b0;
+
+
+          wr_id[0] <=
+            axi.awid;
+
+
+          wr_addr[0] <=
+            axi.awaddr;
+
+
+          wr_len[0] <=
+            axi.awlen;
+
+
+          wr_size[0] <=
+            axi.awsize;
+
+
+          wr_burst[0] <=
+            axi.awburst;
+
+
+          wr_beat[0] <=
+            0;
+
+
+          wr_seq[0] <=
+            wr_next_seq;
+
+
+        end
+
+
+        // ---------------------------------------------------
+        // Allocate slot 1
+        // ---------------------------------------------------
+
+        else begin
+
+
+          wr_valid[1] <= 1'b1;
+
+          wr_data_done[1] <= 1'b0;
+
+
+          wr_id[1] <=
+            axi.awid;
+
+
+          wr_addr[1] <=
+            axi.awaddr;
+
+
+          wr_len[1] <=
+            axi.awlen;
+
+
+          wr_size[1] <=
+            axi.awsize;
+
+
+          wr_burst[1] <=
+            axi.awburst;
+
+
+          wr_beat[1] <=
+            0;
+
+
+          wr_seq[1] <=
+            wr_next_seq;
+
+
+        end
+
+
+        wr_next_seq <=
+          wr_next_seq + 1;
+
 
       end
 
 
       // =====================================================
-      // W CHANNEL
+      // W HANDSHAKE
       // =====================================================
 
-      if (axi.wvalid && axi.wready) begin
+      if (
+        axi.wvalid &&
+        axi.wready
+      ) begin
 
-        // Write enabled byte lanes
+
+        // Byte lane 0
 
         if (axi.wstrb[0])
-          mem[wr_addr + 0] <= axi.wdata[7:0];
+
+          mem[
+            wr_addr[wr_w_sel] + 0
+          ] <=
+            axi.wdata[7:0];
+
+
+        // Byte lane 1
 
         if (axi.wstrb[1])
-          mem[wr_addr + 1] <= axi.wdata[15:8];
+
+          mem[
+            wr_addr[wr_w_sel] + 1
+          ] <=
+            axi.wdata[15:8];
+
+
+        // Byte lane 2
 
         if (axi.wstrb[2])
-          mem[wr_addr + 2] <= axi.wdata[23:16];
+
+          mem[
+            wr_addr[wr_w_sel] + 2
+          ] <=
+            axi.wdata[23:16];
+
+
+        // Byte lane 3
 
         if (axi.wstrb[3])
-          mem[wr_addr + 3] <= axi.wdata[31:24];
+
+          mem[
+            wr_addr[wr_w_sel] + 3
+          ] <=
+            axi.wdata[31:24];
 
 
-        // More W beats remain
-        if (wr_beat_count != saved_wr_len) begin
-
-          wr_beat_count <= wr_beat_count + 1;
-
-          // INCR burst
-          if (saved_wr_burst == 2'b01)
-            wr_addr <= wr_addr +
-                       (32'd1 << saved_wr_size);
-
-          // FIXED burst:
-          // address remains unchanged
-
-        end
-
+        // ---------------------------------------------------
         // Final W beat
-        else begin
+        // ---------------------------------------------------
 
-          // Final expected beat must have WLAST
-          if (!axi.wlast)
-            $error("WLAST missing on final write beat");
-
-          // Start write response
-          axi.bvalid <= 1'b1;
-          axi.bid    <= saved_wr_id;
-          axi.bresp  <= 2'b00;       // OKAY
-
-        end
-
-      end
+        if (
+          wr_beat[wr_w_sel] ==
+          wr_len[wr_w_sel]
+        ) begin
 
 
-      // =====================================================
-      // B CHANNEL
-      // =====================================================
+          wr_data_done[wr_w_sel] <=
+            1'b1;
 
-      if (axi.bvalid && axi.bready) begin
-
-        // Master accepted B response
-        axi.bvalid   <= 1'b0;
-
-        // Write transaction completely finished
-        write_active <= 1'b0;
-
-      end
-
-
-      // =====================================================
-      // AR CHANNEL
-      // =====================================================
-
-      if (axi.arvalid && axi.arready) begin
-
-        saved_rd_id    <= axi.arid;
-        saved_rd_len   <= axi.arlen;
-        saved_rd_size  <= axi.arsize;
-        saved_rd_burst <= axi.arburst;
-
-        rd_addr        <= axi.araddr;
-        rd_beat_count  <= 0;
-
-        read_active    <= 1'b1;
-
-      end
-
-
-      // =====================================================
-      // PREPARE R BEAT
-      // =====================================================
-
-      /*
-       * Prepare a new R beat only when RVALID is currently low.
-       *
-       * If RVALID = 1 and RREADY = 0,
-       * RDATA/RID/RRESP/RLAST must remain stable.
-       */
-
-      if (read_active && !axi.rvalid) begin
-
-        axi.rid <= saved_rd_id;
-
-        axi.rdata <= {
-          mem[rd_addr + 3],
-          mem[rd_addr + 2],
-          mem[rd_addr + 1],
-          mem[rd_addr + 0]
-        };
-
-        axi.rresp <= 2'b00;       // OKAY
-
-
-        // Last read beat?
-        if (rd_beat_count == saved_rd_len)
-          axi.rlast <= 1'b1;
-        else
-          axi.rlast <= 1'b0;
-
-
-        axi.rvalid <= 1'b1;
-
-      end
-
-
-      // =====================================================
-      // R CHANNEL HANDSHAKE
-      // =====================================================
-
-      if (axi.rvalid && axi.rready) begin
-
-        // Current R beat was accepted
-        axi.rvalid <= 1'b0;
-
-
-        // -----------------------------------------------
-        // Final read beat
-        // -----------------------------------------------
-
-        if (rd_beat_count == saved_rd_len) begin
-
-          // RLAST was 1 during this handshake.
-          // Now the burst is finished.
-          axi.rlast  <= 1'b0;
-
-          read_active <= 1'b0;
 
         end
 
 
-        // -----------------------------------------------
-        // More read beats remain
-        // -----------------------------------------------
+        // ---------------------------------------------------
+        // More beats remain
+        // ---------------------------------------------------
 
         else begin
 
-          rd_beat_count <= rd_beat_count + 1;
 
-          // INCR burst
-          if (saved_rd_burst == 2'b01)
-            rd_addr <= rd_addr +
-                       (32'd1 << saved_rd_size);
+          wr_beat[wr_w_sel] <=
+            wr_beat[wr_w_sel] + 1;
 
-          // FIXED burst:
-          // address remains unchanged
+
+          wr_addr[wr_w_sel] <=
+            calc_next_addr(
+
+              wr_addr[wr_w_sel],
+
+              wr_len[wr_w_sel],
+
+              wr_size[wr_w_sel],
+
+              wr_burst[wr_w_sel]
+
+            );
+
 
         end
 
+
       end
+
+
+      // =====================================================
+      // B RESPONSE
+      // =====================================================
+
+
+      // -----------------------------------------------------
+      // Existing B response waiting for BREADY
+      // -----------------------------------------------------
+
+      if (axi.bvalid) begin
+
+
+        if (axi.bready) begin
+
+
+          axi.bvalid <=
+            1'b0;
+
+
+          // Entire write transaction completed
+
+          wr_valid[b_sel] <=
+            1'b0;
+
+
+          wr_data_done[b_sel] <=
+            1'b0;
+
+
+          wr_wait_count <=
+            0;
+
+
+        end
+
+
+      end
+
+
+      // -----------------------------------------------------
+      // No B response currently active.
+      // Select one.
+      // -----------------------------------------------------
+
+      else begin
+
+
+        // ===================================================
+        // BOTH WRITE TRANSACTIONS READY FOR B
+        // ===================================================
+
+        if (
+          wr_valid[0] &&
+          wr_data_done[0] &&
+          wr_valid[1] &&
+          wr_data_done[1]
+        ) begin
+
+
+          // -------------------------------------------------
+          // SAME ID
+          //
+          // Must preserve order.
+          // -------------------------------------------------
+
+          if (
+            wr_id[0] ==
+            wr_id[1]
+          ) begin
+
+
+            if (
+              wr_seq[0] <=
+              wr_seq[1]
+            ) begin
+
+
+              b_sel <=
+                1'b0;
+
+
+              axi.bid <=
+                wr_id[0];
+
+
+            end
+
+
+            else begin
+
+
+              b_sel <=
+                1'b1;
+
+
+              axi.bid <=
+                wr_id[1];
+
+
+            end
+
+
+          end
+
+
+          // -------------------------------------------------
+          // DIFFERENT IDs
+          //
+          // Deliberately newer first to exercise OOO.
+          // -------------------------------------------------
+
+          else begin
+
+
+            if (
+              wr_seq[0] >
+              wr_seq[1]
+            ) begin
+
+
+              b_sel <=
+                1'b0;
+
+
+              axi.bid <=
+                wr_id[0];
+
+
+            end
+
+
+            else begin
+
+
+              b_sel <=
+                1'b1;
+
+
+              axi.bid <=
+                wr_id[1];
+
+
+            end
+
+
+          end
+
+
+          axi.bresp <=
+            2'b00;
+
+
+          axi.bvalid <=
+            1'b1;
+
+
+          wr_wait_count <=
+            0;
+
+
+        end
+
+
+        // ===================================================
+        // ONLY SLOT 0 READY
+        // ===================================================
+
+        else if (
+          wr_valid[0] &&
+          wr_data_done[0]
+        ) begin
+
+
+          if (
+            wr_wait_count >=
+            WR_SINGLE_WAIT_CYCLES
+          ) begin
+
+
+            b_sel <=
+              1'b0;
+
+
+            axi.bid <=
+              wr_id[0];
+
+
+            axi.bresp <=
+              2'b00;
+
+
+            axi.bvalid <=
+              1'b1;
+
+
+            wr_wait_count <=
+              0;
+
+
+          end
+
+
+          else begin
+
+
+            wr_wait_count <=
+              wr_wait_count + 1;
+
+
+          end
+
+
+        end
+
+
+        // ===================================================
+        // ONLY SLOT 1 READY
+        // ===================================================
+
+        else if (
+          wr_valid[1] &&
+          wr_data_done[1]
+        ) begin
+
+
+          if (
+            wr_wait_count >=
+            WR_SINGLE_WAIT_CYCLES
+          ) begin
+
+
+            b_sel <=
+              1'b1;
+
+
+            axi.bid <=
+              wr_id[1];
+
+
+            axi.bresp <=
+              2'b00;
+
+
+            axi.bvalid <=
+              1'b1;
+
+
+            wr_wait_count <=
+              0;
+
+
+          end
+
+
+          else begin
+
+
+            wr_wait_count <=
+              wr_wait_count + 1;
+
+
+          end
+
+
+        end
+
+
+        else begin
+
+
+          wr_wait_count <=
+            0;
+
+
+        end
+
+
+      end
+
+
+      // =====================================================
+      // AR HANDSHAKE
+      // =====================================================
+
+      if (
+        axi.arvalid &&
+        axi.arready
+      ) begin
+
+
+        // ---------------------------------------------------
+        // Allocate slot 0
+        // ---------------------------------------------------
+
+        if (!rd_valid[0]) begin
+
+
+          rd_valid[0] <=
+            1'b1;
+
+
+          rd_id[0] <=
+            axi.arid;
+
+
+          rd_addr[0] <=
+            axi.araddr;
+
+
+          rd_len[0] <=
+            axi.arlen;
+
+
+          rd_size[0] <=
+            axi.arsize;
+
+
+          rd_burst[0] <=
+            axi.arburst;
+
+
+          rd_beat[0] <=
+            0;
+
+
+          rd_seq[0] <=
+            rd_next_seq;
+
+
+        end
+
+
+        // ---------------------------------------------------
+        // Allocate slot 1
+        // ---------------------------------------------------
+
+        else begin
+
+
+          rd_valid[1] <=
+            1'b1;
+
+
+          rd_id[1] <=
+            axi.arid;
+
+
+          rd_addr[1] <=
+            axi.araddr;
+
+
+          rd_len[1] <=
+            axi.arlen;
+
+
+          rd_size[1] <=
+            axi.arsize;
+
+
+          rd_burst[1] <=
+            axi.arburst;
+
+
+          rd_beat[1] <=
+            0;
+
+
+          rd_seq[1] <=
+            rd_next_seq;
+
+
+        end
+
+
+        rd_next_seq <=
+          rd_next_seq + 1;
+
+
+      end
+
+
+      // =====================================================
+      // R CHANNEL
+      // =====================================================
+
+
+      // -----------------------------------------------------
+      // Existing R beat active
+      // -----------------------------------------------------
+
+      if (axi.rvalid) begin
+
+
+        if (axi.rready) begin
+
+
+          axi.rvalid <=
+            1'b0;
+
+
+          // -------------------------------------------------
+          // Final read beat
+          // -------------------------------------------------
+
+          if (axi.rlast) begin
+
+
+            rd_valid[r_sel] <=
+              1'b0;
+
+
+          end
+
+
+          // -------------------------------------------------
+          // More beats remain
+          // -------------------------------------------------
+
+          else begin
+
+
+            rd_beat[r_sel] <=
+              rd_beat[r_sel] + 1;
+
+
+            rd_addr[r_sel] <=
+              calc_next_addr(
+
+                rd_addr[r_sel],
+
+                rd_len[r_sel],
+
+                rd_size[r_sel],
+
+                rd_burst[r_sel]
+
+              );
+
+
+          end
+
+
+        end
+
+
+      end
+
+
+      // -----------------------------------------------------
+      // No active R beat.
+      // Select transaction.
+      // -----------------------------------------------------
+
+      else begin
+
+
+        // ===================================================
+        // TWO READS PENDING
+        // ===================================================
+
+        if (
+          rd_valid[0] &&
+          rd_valid[1]
+        ) begin
+
+
+          // -------------------------------------------------
+          // SAME ID
+          //
+          // Older request first.
+          // -------------------------------------------------
+
+          if (
+            rd_id[0] ==
+            rd_id[1]
+          ) begin
+
+
+            if (
+              rd_seq[0] <=
+              rd_seq[1]
+            ) begin
+
+
+              r_sel <=
+                1'b0;
+
+
+              axi.rid <=
+                rd_id[0];
+
+
+              axi.rdata <=
+                read_word(
+                  rd_addr[0]
+                );
+
+
+              axi.rlast <=
+                (
+                  rd_beat[0] ==
+                  rd_len[0]
+                );
+
+
+            end
+
+
+            else begin
+
+
+              r_sel <=
+                1'b1;
+
+
+              axi.rid <=
+                rd_id[1];
+
+
+              axi.rdata <=
+                read_word(
+                  rd_addr[1]
+                );
+
+
+              axi.rlast <=
+                (
+                  rd_beat[1] ==
+                  rd_len[1]
+                );
+
+
+            end
+
+
+          end
+
+
+          // -------------------------------------------------
+          // DIFFERENT IDs
+          //
+          // Newer request first to exercise OOO.
+          // -------------------------------------------------
+
+          else begin
+
+
+            if (
+              rd_seq[0] >
+              rd_seq[1]
+            ) begin
+
+
+              r_sel <=
+                1'b0;
+
+
+              axi.rid <=
+                rd_id[0];
+
+
+              axi.rdata <=
+                read_word(
+                  rd_addr[0]
+                );
+
+
+              axi.rlast <=
+                (
+                  rd_beat[0] ==
+                  rd_len[0]
+                );
+
+
+            end
+
+
+            else begin
+
+
+              r_sel <=
+                1'b1;
+
+
+              axi.rid <=
+                rd_id[1];
+
+
+              axi.rdata <=
+                read_word(
+                  rd_addr[1]
+                );
+
+
+              axi.rlast <=
+                (
+                  rd_beat[1] ==
+                  rd_len[1]
+                );
+
+
+            end
+
+
+          end
+
+
+          axi.rresp <=
+            2'b00;
+
+
+          axi.rvalid <=
+            1'b1;
+
+
+          rd_wait_count <=
+            0;
+
+
+        end
+
+
+        // ===================================================
+        // ONLY SLOT 0
+        // ===================================================
+
+        else if (rd_valid[0]) begin
+
+
+          if (
+            rd_wait_count >=
+            RD_SINGLE_WAIT_CYCLES
+          ) begin
+
+
+            r_sel <=
+              1'b0;
+
+
+            axi.rid <=
+              rd_id[0];
+
+
+            axi.rdata <=
+              read_word(
+                rd_addr[0]
+              );
+
+
+            axi.rresp <=
+              2'b00;
+
+
+            axi.rlast <=
+              (
+                rd_beat[0] ==
+                rd_len[0]
+              );
+
+
+            axi.rvalid <=
+              1'b1;
+
+
+            rd_wait_count <=
+              0;
+
+
+          end
+
+
+          else begin
+
+
+            rd_wait_count <=
+              rd_wait_count + 1;
+
+
+          end
+
+
+        end
+
+
+        // ===================================================
+        // ONLY SLOT 1
+        // ===================================================
+
+        else if (rd_valid[1]) begin
+
+
+          if (
+            rd_wait_count >=
+            RD_SINGLE_WAIT_CYCLES
+          ) begin
+
+
+            r_sel <=
+              1'b1;
+
+
+            axi.rid <=
+              rd_id[1];
+
+
+            axi.rdata <=
+              read_word(
+                rd_addr[1]
+              );
+
+
+            axi.rresp <=
+              2'b00;
+
+
+            axi.rlast <=
+              (
+                rd_beat[1] ==
+                rd_len[1]
+              );
+
+
+            axi.rvalid <=
+              1'b1;
+
+
+            rd_wait_count <=
+              0;
+
+
+          end
+
+
+          else begin
+
+
+            rd_wait_count <=
+              rd_wait_count + 1;
+
+
+          end
+
+
+        end
+
+
+        else begin
+
+
+          rd_wait_count <=
+            0;
+
+
+        end
+
+
+      end
+
 
     end
 
+
   end
+
 
 endmodule
