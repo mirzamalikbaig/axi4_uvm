@@ -53,7 +53,12 @@ class axi_coverage extends uvm_subscriber #(axi_txn);
     }
 
     op_x_burst: cross cp_op, cp_burst;
-    burst_x_len: cross cp_burst, cp_len;
+    burst_x_len: cross cp_burst, cp_len {
+      // WRAP bursts cannot be single-beat in AXI4.
+      ignore_bins wrap_single =
+        binsof(cp_burst) intersect {2'b10} &&
+        binsof(cp_len)   intersect {0};
+    }
 
   endgroup
 
@@ -63,17 +68,17 @@ class axi_coverage extends uvm_subscriber #(axi_txn);
     axi_cg = new();
   endfunction
 
-  function void write(axi_txn txn);
-    sample_op    = txn.op;
-    sample_burst = txn.burst;
-    sample_size  = txn.size;
-    sample_len   = txn.len;
-    sample_id    = txn.id;
+  function void write(axi_txn t);
+    sample_op    = t.op;
+    sample_burst = t.burst;
+    sample_size  = t.size;
+    sample_len   = t.len;
+    sample_id    = t.id;
 
-    if (txn.op == axi_txn::AXI_WRITE)
-      sample_resp = txn.bresp;
-    else if (txn.rresp.size() > 0)
-      sample_resp = txn.rresp[txn.rresp.size()-1];
+    if (t.op == axi_txn::AXI_WRITE)
+      sample_resp = t.bresp;
+    else if (t.rresp.size() > 0)
+      sample_resp = t.rresp[t.rresp.size()-1];
     else
       sample_resp = axi_txn::OKAY;
 

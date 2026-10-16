@@ -343,13 +343,122 @@ class axi_test extends uvm_test;
     )
 
 
+
+    // =======================================================
+    // 9. FIXED WRITE
+    // =======================================================
+
+    `uvm_info(
+      "TEST",
+      "Starting FIXED WRITE test",
+      UVM_LOW
+    )
+
+    seq.scenario =
+      axi_sequence::FIXED_WRITE;
+
+    seq.start(
+      env.agent.sequencer
+    );
+
+    env.agent.driver.
+      wait_for_writes_done();
+
+    `uvm_info(
+      "TEST",
+      "FIXED WRITE completed",
+      UVM_LOW
+    )
+
+
+    // =======================================================
+    // 10. FIXED READ
+    // =======================================================
+
+    `uvm_info(
+      "TEST",
+      "Starting FIXED READ test",
+      UVM_LOW
+    )
+
+    seq.scenario =
+      axi_sequence::FIXED_READ;
+
+    seq.start(
+      env.agent.sequencer
+    );
+
+    env.agent.driver.
+      wait_for_reads_done();
+
+    `uvm_info(
+      "TEST",
+      "FIXED READ completed",
+      UVM_LOW
+    )
+
+
+    // =======================================================
+    // 11. MULTI-BEAT INCR WRITE
+    // =======================================================
+
+    `uvm_info(
+      "TEST",
+      "Starting multi-beat INCR WRITE test",
+      UVM_LOW
+    )
+
+    seq.scenario =
+      axi_sequence::INCR_MULTI_WRITE;
+
+    seq.start(
+      env.agent.sequencer
+    );
+
+    env.agent.driver.
+      wait_for_writes_done();
+
+    `uvm_info(
+      "TEST",
+      "Multi-beat INCR WRITE completed",
+      UVM_LOW
+    )
+
+
+    // =======================================================
+    // 12. MULTI-BEAT INCR READ
+    // =======================================================
+
+    `uvm_info(
+      "TEST",
+      "Starting multi-beat INCR READ test",
+      UVM_LOW
+    )
+
+    seq.scenario =
+      axi_sequence::INCR_MULTI_READ;
+
+    seq.start(
+      env.agent.sequencer
+    );
+
+    env.agent.driver.
+      wait_for_reads_done();
+
+    `uvm_info(
+      "TEST",
+      "Multi-beat INCR READ completed",
+      UVM_LOW
+    )
+
+
     // =======================================================
     // FINISHED
     // =======================================================
 
     `uvm_info(
       "TEST",
-      "All AXI READ, WRITE and WRAP tests completed",
+      "All AXI READ, WRITE, WRAP, FIXED and multi-beat INCR tests completed",
       UVM_LOW
     )
 

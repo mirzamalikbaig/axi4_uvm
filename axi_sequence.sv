@@ -31,7 +31,15 @@ class axi_sequence extends uvm_sequence #(axi_txn);
 
     WRAP_WRITE,
 
-    WRAP_READ
+    WRAP_READ,
+
+    FIXED_WRITE,
+
+    FIXED_READ,
+
+    INCR_MULTI_WRITE,
+
+    INCR_MULTI_READ
 
   } scenario_e;
 
@@ -540,6 +548,143 @@ class axi_sequence extends uvm_sequence #(axi_txn);
 
         finish_item(txn);
 
+
+      end
+
+
+
+      // =====================================================
+      // 9. FIXED WRITE
+      //
+      // Four beats target the SAME address.
+      // Final memory value at addr800 becomes 44.
+      // =====================================================
+
+      FIXED_WRITE: begin
+
+        txn = axi_txn::type_id::create("fixed_write");
+
+        start_item(txn);
+
+        assert(
+          txn.randomize() with {
+            op    == axi_txn::AXI_WRITE;
+            id    == 4'd12;
+            addr  == 32'd800;
+            len   == 3;
+            size  == 2;
+            burst == axi_txn::FIXED;
+
+            write_data[0] == 32'd11;
+            write_data[1] == 32'd22;
+            write_data[2] == 32'd33;
+            write_data[3] == 32'd44;
+
+            wstrb[0] == 4'b1111;
+            wstrb[1] == 4'b1111;
+            wstrb[2] == 4'b1111;
+            wstrb[3] == 4'b1111;
+          }
+        );
+
+        finish_item(txn);
+
+      end
+
+
+      // =====================================================
+      // 10. FIXED READ
+      //
+      // All four beats read addr800.
+      // Expected data on every beat = 44.
+      // =====================================================
+
+      FIXED_READ: begin
+
+        txn = axi_txn::type_id::create("fixed_read");
+
+        start_item(txn);
+
+        assert(
+          txn.randomize() with {
+            op    == axi_txn::AXI_READ;
+            id    == 4'd13;
+            addr  == 32'd800;
+            len   == 3;
+            size  == 2;
+            burst == axi_txn::FIXED;
+          }
+        );
+
+        finish_item(txn);
+
+      end
+
+
+      // =====================================================
+      // 11. MULTI-BEAT INCR WRITE
+      //
+      // Address sequence:
+      // 900 -> 904 -> 908 -> 912
+      // =====================================================
+
+      INCR_MULTI_WRITE: begin
+
+        txn = axi_txn::type_id::create("incr_multi_write");
+
+        start_item(txn);
+
+        assert(
+          txn.randomize() with {
+            op    == axi_txn::AXI_WRITE;
+            id    == 4'd14;
+            addr  == 32'd900;
+            len   == 3;
+            size  == 2;
+            burst == axi_txn::INCR;
+
+            write_data[0] == 32'd101;
+            write_data[1] == 32'd102;
+            write_data[2] == 32'd103;
+            write_data[3] == 32'd104;
+
+            wstrb[0] == 4'b1111;
+            wstrb[1] == 4'b1111;
+            wstrb[2] == 4'b1111;
+            wstrb[3] == 4'b1111;
+          }
+        );
+
+        finish_item(txn);
+
+      end
+
+
+      // =====================================================
+      // 12. MULTI-BEAT INCR READ
+      //
+      // Expected:
+      // 900=101, 904=102, 908=103, 912=104
+      // =====================================================
+
+      INCR_MULTI_READ: begin
+
+        txn = axi_txn::type_id::create("incr_multi_read");
+
+        start_item(txn);
+
+        assert(
+          txn.randomize() with {
+            op    == axi_txn::AXI_READ;
+            id    == 4'd15;
+            addr  == 32'd900;
+            len   == 3;
+            size  == 2;
+            burst == axi_txn::INCR;
+          }
+        );
+
+        finish_item(txn);
 
       end
 
