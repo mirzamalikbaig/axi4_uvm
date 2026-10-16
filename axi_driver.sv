@@ -1,11 +1,3 @@
-/******************************************************************************
- * Project     : AXI4 UVM Verification
- * File        : axi_driver.sv
- * Author      : Mirza Agha Malik Baig
- * Description : Drives AXI transactions and captures read data and write
- *               responses.
- *****************************************************************************/
-
 class axi_driver extends uvm_driver #(axi_txn);
 
   `uvm_component_utils(axi_driver)
@@ -14,17 +6,13 @@ class axi_driver extends uvm_driver #(axi_txn);
 
   axi_txn txn;
 
-
-  // =========================================================
   // OUTSTANDING CONTROL
-  // =========================================================
 
   int outstanding_reads  = 0;
   int outstanding_writes = 0;
 
   localparam int MAX_OUTSTANDING_READS  = 2;
   localparam int MAX_OUTSTANDING_WRITES = 2;
-
 
   function new(
     string name = "axi_driver",
@@ -35,10 +23,7 @@ class axi_driver extends uvm_driver #(axi_txn);
 
   endfunction
 
-
-  // =========================================================
   // BUILD
-  // =========================================================
 
   function void build_phase(uvm_phase phase);
 
@@ -58,10 +43,7 @@ class axi_driver extends uvm_driver #(axi_txn);
 
   endfunction
 
-
-  // =========================================================
   // RUN
-  // =========================================================
 
   task run_phase(uvm_phase phase);
 
@@ -69,13 +51,9 @@ class axi_driver extends uvm_driver #(axi_txn);
 
     wait(vif.aresetn == 1'b1);
 
-
     fork
 
-
-      // -----------------------------------------------------
       // REQUEST THREAD
-      // -----------------------------------------------------
 
       begin
 
@@ -91,10 +69,7 @@ class axi_driver extends uvm_driver #(axi_txn);
 
       end
 
-
-      // -----------------------------------------------------
       // READ RESPONSE THREAD
-      // -----------------------------------------------------
 
       begin
 
@@ -102,10 +77,7 @@ class axi_driver extends uvm_driver #(axi_txn);
 
       end
 
-
-      // -----------------------------------------------------
       // WRITE RESPONSE THREAD
-      // -----------------------------------------------------
 
       begin
 
@@ -113,15 +85,11 @@ class axi_driver extends uvm_driver #(axi_txn);
 
       end
 
-
     join
 
   endtask
 
-
-  // =========================================================
   // INITIAL SIGNAL VALUES
-  // =========================================================
 
   task init_signals();
 
@@ -132,27 +100,20 @@ class axi_driver extends uvm_driver #(axi_txn);
 
     vif.bready  <= 1'b0;
 
-
     vif.arvalid <= 1'b0;
 
     vif.rready  <= 1'b0;
-
 
     outstanding_reads  = 0;
     outstanding_writes = 0;
 
   endtask
 
-
-  // =========================================================
   // DISPATCH TRANSACTION
-  // =========================================================
 
   task drive(axi_txn txn);
 
-
     if (txn.op == axi_txn::AXI_WRITE) begin
-
 
       // Do not exceed supported write depth
       wait(
@@ -160,14 +121,11 @@ class axi_driver extends uvm_driver #(axi_txn);
         MAX_OUTSTANDING_WRITES
       );
 
-
       drive_write(txn);
 
     end
 
-
     else begin
-
 
       // Do not exceed supported read depth
       wait(
@@ -175,13 +133,10 @@ class axi_driver extends uvm_driver #(axi_txn);
         MAX_OUTSTANDING_READS
       );
 
-
       drive_read_addr(txn);
-
 
       // AR has now been accepted.
       outstanding_reads++;
-
 
       `uvm_info(
         "DRV",
@@ -198,14 +153,12 @@ class axi_driver extends uvm_driver #(axi_txn);
 
   endtask
 
-
-  // =========================================================
   // WRITE REQUEST
-  //
+
   // IMPORTANT:
-  //
+
   // We do:
-  //
+
   // AW
   // ↓
   // mark transaction outstanding
@@ -213,18 +166,14 @@ class axi_driver extends uvm_driver #(axi_txn);
   // W beats
   // ↓
   // return
-  //
+
   // We DO NOT wait for B here.
-  //
+
   // B is collected by a separate thread.
-  // =========================================================
 
   task drive_write(axi_txn txn);
 
-
-    // -------------------------------------------------------
     // AW CHANNEL
-    // -------------------------------------------------------
 
     @(posedge vif.aclk);
 
@@ -236,7 +185,6 @@ class axi_driver extends uvm_driver #(axi_txn);
 
     vif.awvalid <= 1'b1;
 
-
     do begin
 
       @(posedge vif.aclk);
@@ -244,14 +192,11 @@ class axi_driver extends uvm_driver #(axi_txn);
     end
     while (!vif.awready);
 
-
     vif.awvalid <= 1'b0;
-
 
     // AW accepted:
     // write is now outstanding.
     outstanding_writes++;
-
 
     `uvm_info(
       "DRV",
@@ -264,24 +209,19 @@ class axi_driver extends uvm_driver #(axi_txn);
       UVM_LOW
     )
 
-
-    // -------------------------------------------------------
     // W CHANNEL
-    //
+
     // No WID exists.
-    //
+
     // Therefore W bursts follow AW order.
-    // -------------------------------------------------------
 
     for (int beat = 0;
          beat <= txn.len;
          beat++) begin
 
-
       vif.wdata <= txn.write_data[beat];
 
       vif.wstrb <= txn.wstrb[beat];
-
 
       if (beat == txn.len)
 
@@ -291,9 +231,7 @@ class axi_driver extends uvm_driver #(axi_txn);
 
         vif.wlast <= 1'b0;
 
-
       vif.wvalid <= 1'b1;
-
 
       do begin
 
@@ -304,32 +242,26 @@ class axi_driver extends uvm_driver #(axi_txn);
 
     end
 
-
     vif.wvalid <= 1'b0;
 
     vif.wlast  <= 1'b0;
 
-
     // IMPORTANT:
-    //
+
     // Return here.
-    //
+
     // Do NOT wait for B.
-    //
+
     // This allows next AW/W transaction to start while
     // previous B response is still pending.
 
   endtask
 
-
-  // =========================================================
   // READ ADDRESS
-  // =========================================================
 
   task drive_read_addr(axi_txn txn);
 
     @(posedge vif.aclk);
-
 
     vif.arid    <= txn.id;
 
@@ -343,7 +275,6 @@ class axi_driver extends uvm_driver #(axi_txn);
 
     vif.arvalid <= 1'b1;
 
-
     do begin
 
       @(posedge vif.aclk);
@@ -351,25 +282,19 @@ class axi_driver extends uvm_driver #(axi_txn);
     end
     while (!vif.arready);
 
-
     vif.arvalid <= 1'b0;
 
   endtask
 
-
-  // =========================================================
   // READ RESPONSE COLLECTOR
-  // =========================================================
 
   task collect_read_responses();
 
     vif.rready <= 1'b1;
 
-
     forever begin
 
       @(posedge vif.aclk);
-
 
       if (
         vif.rvalid &&
@@ -377,11 +302,9 @@ class axi_driver extends uvm_driver #(axi_txn);
         vif.rlast
       ) begin
 
-
         if (outstanding_reads > 0) begin
 
           outstanding_reads--;
-
 
           `uvm_info(
             "DRV",
@@ -394,7 +317,6 @@ class axi_driver extends uvm_driver #(axi_txn);
           )
 
         end
-
 
         else begin
 
@@ -411,31 +333,24 @@ class axi_driver extends uvm_driver #(axi_txn);
 
   endtask
 
-
-  // =========================================================
   // WRITE RESPONSE COLLECTOR
-  // =========================================================
 
   task collect_write_responses();
 
     vif.bready <= 1'b1;
 
-
     forever begin
 
       @(posedge vif.aclk);
-
 
       if (
         vif.bvalid &&
         vif.bready
       ) begin
 
-
         if (outstanding_writes > 0) begin
 
           outstanding_writes--;
-
 
           `uvm_info(
             "DRV",
@@ -448,7 +363,6 @@ class axi_driver extends uvm_driver #(axi_txn);
           )
 
         end
-
 
         else begin
 
@@ -465,10 +379,7 @@ class axi_driver extends uvm_driver #(axi_txn);
 
   endtask
 
-
-  // =========================================================
   // SYNCHRONIZATION
-  // =========================================================
 
   task wait_for_reads_done();
 
@@ -478,7 +389,6 @@ class axi_driver extends uvm_driver #(axi_txn);
 
   endtask
 
-
   task wait_for_writes_done();
 
     wait(outstanding_writes == 0);
@@ -486,7 +396,6 @@ class axi_driver extends uvm_driver #(axi_txn);
     @(posedge vif.aclk);
 
   endtask
-
 
   task wait_for_all_done();
 
@@ -498,6 +407,5 @@ class axi_driver extends uvm_driver #(axi_txn);
     @(posedge vif.aclk);
 
   endtask
-
 
 endclass

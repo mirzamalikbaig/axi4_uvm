@@ -1,11 +1,3 @@
-/******************************************************************************
- * Project     : AXI4 UVM Verification
- * File        : axi_agent.sv
- * Author      : Mirza Agha Malik Baig
- * Description : Groups the AXI sequencer, driver, and monitor; connects
- *               driver and sequencer.
- *****************************************************************************/
-
 class axi_agent extends uvm_agent;
 
   `uvm_component_utils(axi_agent)
@@ -14,14 +6,12 @@ class axi_agent extends uvm_agent;
   axi_driver    driver;
   axi_monitor   monitor;
 
-
   function new(string name = "axi_agent",
                uvm_component parent = null);
 
     super.new(name, parent);
 
   endfunction
-
 
   function void build_phase(uvm_phase phase);
 
@@ -37,7 +27,6 @@ class axi_agent extends uvm_agent;
       axi_monitor::type_id::create("monitor", this);
 
   endfunction
-
 
   function void connect_phase(uvm_phase phase);
 

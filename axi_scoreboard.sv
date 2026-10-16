@@ -1,41 +1,23 @@
-/******************************************************************************
- * Project     : AXI4 UVM Verification
- * File        : axi_scoreboard.sv
- * Author      : Mirza Agha Malik Baig
- * Description : Maintains reference memory and checks observed AXI read
- *               data.
- *****************************************************************************/
-
 class axi_scoreboard extends uvm_scoreboard;
 
   `uvm_component_utils(axi_scoreboard)
-
 
   uvm_analysis_imp #(
     axi_txn,
     axi_scoreboard
   ) imp;
 
-
-  // =========================================================
   // REFERENCE MEMORY
-  // =========================================================
 
   logic [7:0] ref_mem [0:64*1024-1];
 
-
-  // =========================================================
   // OUT-OF-ORDER WRITE COMPLETION
-  // =========================================================
 
   axi_txn completed_writes[int unsigned];
 
   int unsigned next_wr_commit = 0;
 
-
-  // =========================================================
   // CONSTRUCTOR
-  // =========================================================
 
   function new(
     string name = "axi_scoreboard",
@@ -48,12 +30,9 @@ class axi_scoreboard extends uvm_scoreboard;
 
   endfunction
 
-
-  // =========================================================
   // ADDRESS CALCULATION
-  //
+
   // Independent reference-model calculation.
-  // =========================================================
 
   function automatic logic [31:0]
     calc_next_addr(
@@ -64,7 +43,6 @@ class axi_scoreboard extends uvm_scoreboard;
       input axi_txn::axi_burst_e burst
 
     );
-
 
     longint unsigned bytes_per_beat;
 
@@ -78,17 +56,12 @@ class axi_scoreboard extends uvm_scoreboard;
 
     longint unsigned next_address;
 
-
     bytes_per_beat =
       (1 << size);
 
-
     case (burst)
 
-
-      // -----------------------------------------------------
       // FIXED
-      // -----------------------------------------------------
 
       axi_txn::FIXED: begin
 
@@ -97,10 +70,7 @@ class axi_scoreboard extends uvm_scoreboard;
 
       end
 
-
-      // -----------------------------------------------------
       // INCR
-      // -----------------------------------------------------
 
       axi_txn::INCR: begin
 
@@ -110,38 +80,29 @@ class axi_scoreboard extends uvm_scoreboard;
 
       end
 
-
-      // -----------------------------------------------------
       // WRAP
-      // -----------------------------------------------------
 
       axi_txn::WRAP: begin
-
 
         beats = len;
 
         beats = beats + 1;
 
-
         total_bytes =
           bytes_per_beat *
           beats;
-
 
         wrap_base =
           (current_addr / total_bytes) *
           total_bytes;
 
-
         wrap_limit =
           wrap_base +
           total_bytes;
 
-
         next_address =
           current_addr +
           bytes_per_beat;
-
 
         if (
           next_address >=
@@ -151,52 +112,38 @@ class axi_scoreboard extends uvm_scoreboard;
           next_address =
             wrap_base;
 
-
       end
 
-
       default: begin
-
 
         next_address =
           current_addr;
 
-
       end
 
-
     endcase
-
 
     calc_next_addr =
       next_address[31:0];
 
-
   endfunction
 
-
-  // =========================================================
   // APPLY WRITE TO REFERENCE MEMORY
-  // =========================================================
 
   function void apply_write(
     axi_txn txn
   );
 
-
     logic [31:0] current_addr;
-
 
     current_addr =
       txn.addr;
-
 
     for (
       int beat = 0;
       beat <= txn.len;
       beat++
     ) begin
-
 
       if (
         txn.wstrb[beat][0]
@@ -209,7 +156,6 @@ class axi_scoreboard extends uvm_scoreboard;
             beat
           ][7:0];
 
-
       if (
         txn.wstrb[beat][1]
       )
@@ -220,7 +166,6 @@ class axi_scoreboard extends uvm_scoreboard;
           txn.write_data[
             beat
           ][15:8];
-
 
       if (
         txn.wstrb[beat][2]
@@ -233,7 +178,6 @@ class axi_scoreboard extends uvm_scoreboard;
             beat
           ][23:16];
 
-
       if (
         txn.wstrb[beat][3]
       )
@@ -244,7 +188,6 @@ class axi_scoreboard extends uvm_scoreboard;
           txn.write_data[
             beat
           ][31:24];
-
 
       current_addr =
         calc_next_addr(
@@ -259,21 +202,15 @@ class axi_scoreboard extends uvm_scoreboard;
 
         );
 
-
     end
-
 
   endfunction
 
-
-  // =========================================================
   // WRITE()
-  // =========================================================
 
   function void write(
     axi_txn txn
   );
-
 
     logic [31:0] current_addr;
 
@@ -281,26 +218,19 @@ class axi_scoreboard extends uvm_scoreboard;
 
     axi_txn wr_txn;
 
-
-    // =======================================================
     // WRITE TRANSACTION
-    // =======================================================
 
     if (
       txn.op ==
       axi_txn::AXI_WRITE
     ) begin
 
-
-      // -----------------------------------------------------
       // BRESP
-      // -----------------------------------------------------
 
       if (
         txn.bresp !=
         axi_txn::OKAY
       ) begin
-
 
         `uvm_error(
           "SCB",
@@ -312,24 +242,17 @@ class axi_scoreboard extends uvm_scoreboard;
           )
         )
 
-
       end
 
-
-      // -----------------------------------------------------
       // Store transaction using original AW order.
-      //
+
       // B responses may arrive out-of-order.
-      // -----------------------------------------------------
 
       completed_writes[
         txn.wr_seq
       ] = txn;
 
-
-      // -----------------------------------------------------
       // Commit writes in original AW/W order.
-      // -----------------------------------------------------
 
       while (
         completed_writes.exists(
@@ -337,17 +260,14 @@ class axi_scoreboard extends uvm_scoreboard;
         )
       ) begin
 
-
         wr_txn =
           completed_writes[
             next_wr_commit
           ];
 
-
         apply_write(
           wr_txn
         );
-
 
         `uvm_info(
           "SCB",
@@ -362,34 +282,25 @@ class axi_scoreboard extends uvm_scoreboard;
           UVM_LOW
         )
 
-
         completed_writes.delete(
           next_wr_commit
         );
 
-
         next_wr_commit++;
-
 
       end
 
-
     end
 
-
-    // =======================================================
     // READ TRANSACTION
-    // =======================================================
 
     else if (
       txn.op ==
       axi_txn::AXI_READ
     ) begin
 
-
       current_addr =
         txn.addr;
-
 
       for (
         int beat = 0;
@@ -397,10 +308,7 @@ class axi_scoreboard extends uvm_scoreboard;
         beat++
       ) begin
 
-
-        // ---------------------------------------------------
         // Build expected 32-bit value
-        // ---------------------------------------------------
 
         expected_data = {
 
@@ -414,16 +322,12 @@ class axi_scoreboard extends uvm_scoreboard;
 
         };
 
-
-        // ---------------------------------------------------
         // RRESP CHECK
-        // ---------------------------------------------------
 
         if (
           txn.rresp[beat] !=
           axi_txn::OKAY
         ) begin
-
 
           `uvm_error(
             "SCB",
@@ -436,19 +340,14 @@ class axi_scoreboard extends uvm_scoreboard;
             )
           )
 
-
         end
 
-
-        // ---------------------------------------------------
         // RDATA CHECK
-        // ---------------------------------------------------
 
         if (
           expected_data ==
           txn.read_data[beat]
         ) begin
-
 
           `uvm_info(
             "SCB",
@@ -464,12 +363,9 @@ class axi_scoreboard extends uvm_scoreboard;
             UVM_LOW
           )
 
-
         end
 
-
         else begin
-
 
           `uvm_error(
             "SCB",
@@ -484,13 +380,9 @@ class axi_scoreboard extends uvm_scoreboard;
             )
           )
 
-
         end
 
-
-        // ---------------------------------------------------
         // Next expected address
-        // ---------------------------------------------------
 
         current_addr =
           calc_next_addr(
@@ -505,26 +397,19 @@ class axi_scoreboard extends uvm_scoreboard;
 
           );
 
-
       end
-
 
     end
 
-
     else begin
-
 
       `uvm_error(
         "SCB",
         "Unknown AXI transaction operation"
       )
 
-
     end
 
-
   endfunction
-
 
 endclass

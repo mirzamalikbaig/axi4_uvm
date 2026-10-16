@@ -1,11 +1,3 @@
-/******************************************************************************
- * Project     : AXI4 UVM Verification
- * File        : axi_coverage.sv
- * Author      : Mirza Agha Malik Baig
- * Description : Functional coverage sampled from completed monitor
- *               transactions.
- *****************************************************************************/
-
 class axi_coverage extends uvm_subscriber #(axi_txn);
 
   `uvm_component_utils(axi_coverage)
@@ -54,11 +46,14 @@ class axi_coverage extends uvm_subscriber #(axi_txn);
 
     op_x_burst: cross cp_op, cp_burst;
     burst_x_len: cross cp_burst, cp_len {
-      // WRAP bursts cannot be single-beat in AXI4.
+      // WRAP cannot be a one-beat burst
       ignore_bins wrap_single =
         binsof(cp_burst) intersect {2'b10} &&
         binsof(cp_len)   intersect {0};
     }
+
+    // I still want to see whether each burst type used low and high IDs
+    burst_x_id: cross cp_burst, cp_id;
 
   endgroup
 

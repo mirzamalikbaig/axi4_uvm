@@ -1,18 +1,7 @@
-/******************************************************************************
- * Project     : AXI4 UVM Verification
- * File        : tb_top.sv
- * Author      : Mirza Agha Malik Baig
- * Description : Creates clock and reset, connects interface and DUT,
- *               configures UVM, and starts the test.
- *****************************************************************************/
-
 `include "uvm_macros.svh"
 import uvm_pkg::*;
 
-
-// -------------------------------------------------
 // AXI UVM files
-// -------------------------------------------------
 
 `include "axi_if.sv"
 `include "axi_assertions.sv"
@@ -27,11 +16,6 @@ import uvm_pkg::*;
 `include "axi_env.sv"
 `include "axi_test.sv"
 
-
-// =================================================
-// TOP
-// =================================================
-
 module top;
 
   logic clk = 0;
@@ -40,28 +24,21 @@ module top;
   // Clock
   always #5 clk = ~clk;
 
-
-  // Real AXI interface instance
+  // interface
   axi_if axi0 (
     .aclk    (clk),
     .aresetn (resetn)
   );
 
-
-  // AXI memory slave DUT
+  // memory slave DUT
   axi_mem_slave dut (
     .axi (axi0)
   );
 
-  // Cycle-level AXI protocol checks
+  // basic AXI protocol checks
   axi_assertions axi_assertions_i (
     .axi (axi0)
   );
-
-
-  // -------------------------------------------------
-  // RESET THREAD
-  // -------------------------------------------------
 
   initial begin
 
@@ -73,11 +50,6 @@ module top;
     resetn = 1;
 
   end
-
-
-  // -------------------------------------------------
-  // UVM THREAD
-  // -------------------------------------------------
 
   initial begin
 

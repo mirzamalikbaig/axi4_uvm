@@ -1,13 +1,6 @@
-/******************************************************************************
- * Project     : AXI4 UVM Verification
- * File        : axi_assertions.sv
- * Author      : Mirza Agha Malik Baig
- * Description : Cycle-level AXI VALID/READY stability assertions.
- *****************************************************************************/
-
 module axi_assertions(axi_if axi);
 
-  // A source must keep AWVALID and the AW payload stable while stalled.
+  // keep AW stable while the slave is not ready
   property p_aw_stable;
     @(posedge axi.aclk) disable iff (!axi.aresetn)
       axi.awvalid && !axi.awready
@@ -17,7 +10,7 @@ module axi_assertions(axi_if axi);
 
   a_aw_stable: assert property (p_aw_stable);
 
-  // A source must keep WVALID and the W payload stable while stalled.
+  // keep W stable while the slave is not ready
   property p_w_stable;
     @(posedge axi.aclk) disable iff (!axi.aresetn)
       axi.wvalid && !axi.wready
@@ -27,7 +20,7 @@ module axi_assertions(axi_if axi);
 
   a_w_stable: assert property (p_w_stable);
 
-  // A source must keep ARVALID and the AR payload stable while stalled.
+  // keep AR stable while the slave is not ready
   property p_ar_stable;
     @(posedge axi.aclk) disable iff (!axi.aresetn)
       axi.arvalid && !axi.arready
@@ -37,7 +30,7 @@ module axi_assertions(axi_if axi);
 
   a_ar_stable: assert property (p_ar_stable);
 
-  // The slave must hold the read response stable until the master accepts it.
+  // keep R stable until the master accepts it
   property p_r_stable;
     @(posedge axi.aclk) disable iff (!axi.aresetn)
       axi.rvalid && !axi.rready
@@ -47,7 +40,7 @@ module axi_assertions(axi_if axi);
 
   a_r_stable: assert property (p_r_stable);
 
-  // The slave must hold the write response stable until the master accepts it.
+  // keep B stable until the master accepts it
   property p_b_stable;
     @(posedge axi.aclk) disable iff (!axi.aresetn)
       axi.bvalid && !axi.bready

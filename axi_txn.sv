@@ -1,11 +1,3 @@
-/******************************************************************************
- * Project     : AXI4 UVM Verification
- * File        : axi_txn.sv
- * Author      : Mirza Agha Malik Baig
- * Description : Defines AXI operation, burst, address, data, strobe, and
- *               response fields.
- *****************************************************************************/
-
 class axi_txn extends uvm_sequence_item;
 
   // Transaction type
@@ -30,7 +22,6 @@ class axi_txn extends uvm_sequence_item;
     DECERR = 2'b11
   } axi_resp_e;
 
-
   // Request fields
   rand axi_op_e    op;
   rand bit [3:0]   id;
@@ -52,7 +43,6 @@ class axi_txn extends uvm_sequence_item;
   // commit writes in W-channel order when B responses reorder by ID.
   int unsigned wr_seq;
 
-
   `uvm_object_utils_begin(axi_txn)
     `uvm_field_enum(axi_op_e, op, UVM_ALL_ON)
 
@@ -72,7 +62,6 @@ class axi_txn extends uvm_sequence_item;
     `uvm_field_int(wr_seq, UVM_ALL_ON)
   `uvm_object_utils_end
 
-
   // A write needs one data and strobe entry per beat.
   // Read transactions do not use these arrays.
   constraint data_size_c {
@@ -85,7 +74,6 @@ class axi_txn extends uvm_sequence_item;
       wstrb.size()      == 0;
     }
   }
-
 
   // Burst length limits from the AXI4 protocol
   constraint len_c {
@@ -101,19 +89,16 @@ class axi_txn extends uvm_sequence_item;
       len inside {1, 3, 7, 15};
   }
 
-
   // 32-bit data bus supports 1, 2, or 4 bytes per beat
   constraint size_c {
     size inside {[0:2]};
   }
-
 
   // WRAP bursts must start on a transfer-size boundary
   constraint addr_c {
     if (burst == WRAP)
       addr % (1 << size) == 0;
   }
-
 
   function new(string name = "axi_txn");
     super.new(name);
