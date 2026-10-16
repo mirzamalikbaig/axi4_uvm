@@ -544,8 +544,4 @@ class axi_monitor extends uvm_monitor;
 
 endclass
 
-    end
-
-  endtask
-
-endclass
+   
