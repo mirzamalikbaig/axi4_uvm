@@ -15,12 +15,14 @@ import uvm_pkg::*;
 // -------------------------------------------------
 
 `include "axi_if.sv"
+`include "axi_assertions.sv"
 `include "axi_txn.sv"
 `include "axi_sequence.sv"
 `include "axi_sequencer.sv"
 `include "axi_driver.sv"
 `include "axi_monitor.sv"
 `include "axi_scoreboard.sv"
+`include "axi_coverage.sv"
 `include "axi_agent.sv"
 `include "axi_env.sv"
 `include "axi_test.sv"
@@ -48,6 +50,11 @@ module top;
 
   // AXI memory slave DUT
   axi_mem_slave dut (
+    .axi (axi0)
+  );
+
+  // Cycle-level AXI protocol checks
+  axi_assertions axi_assertions_i (
     .axi (axi0)
   );
 

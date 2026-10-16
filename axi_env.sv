@@ -12,6 +12,7 @@ class axi_env extends uvm_env;
 
   axi_agent      agent;
   axi_scoreboard scoreboard;
+  axi_coverage   coverage;
 
 
   function new(string name = "axi_env",
@@ -32,6 +33,9 @@ class axi_env extends uvm_env;
     scoreboard =
       axi_scoreboard::type_id::create("scoreboard", this);
 
+    coverage =
+      axi_coverage::type_id::create("coverage", this);
+
   endfunction
 
 
@@ -42,6 +46,7 @@ class axi_env extends uvm_env;
     // Monitor publishes completed transactions
     // Scoreboard receives them through analysis_imp
     agent.monitor.ap.connect(scoreboard.imp);
+    agent.monitor.ap.connect(coverage.analysis_export);
 
   endfunction
 

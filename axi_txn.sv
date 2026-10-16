@@ -48,6 +48,10 @@ class axi_txn extends uvm_sequence_item;
   axi_resp_e bresp;
   axi_resp_e rresp[];
 
+  // Original AW acceptance order. The scoreboard uses this to
+  // commit writes in W-channel order when B responses reorder by ID.
+  int unsigned wr_seq;
+
 
   `uvm_object_utils_begin(axi_txn)
     `uvm_field_enum(axi_op_e, op, UVM_ALL_ON)
@@ -65,6 +69,7 @@ class axi_txn extends uvm_sequence_item;
 
     `uvm_field_enum(axi_resp_e, bresp, UVM_ALL_ON)
     `uvm_field_array_enum(axi_resp_e, rresp, UVM_ALL_ON)
+    `uvm_field_int(wr_seq, UVM_ALL_ON)
   `uvm_object_utils_end
 
 

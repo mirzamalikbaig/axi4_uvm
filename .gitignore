@@ -5,3 +5,7 @@
 /ucli.key
 /vc_hdrs.h
 /*.log
+
+# Regression and coverage outputs
+/logs/
+/*.vdb/
