@@ -528,8 +528,3 @@ class axi_scoreboard extends uvm_scoreboard;
 
 
 endclass
-endfunction
-  
-  
-
-endclass
