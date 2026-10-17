@@ -1,0 +1,22 @@
+AXI4 UVM SIMULATION RESULT EXCERPT
+==================================
+Source: user's uploaded result/simulation.log
+Tool: Synopsys VCS Y-2026.03-SP1_Full64; UVM 1.2
+Test: axi_test; random seed 1
+Simulation ended at: 1925000 ps
+
+UVM_INFO axi_test.sv(356) @ 1925000: uvm_test_top [TEST] All AXI READ, WRITE, WRAP, FIXED and multi-beat INCR tests completed
+UVM_INFO axi_coverage.sv(85) @ 1925000: uvm_test_top.env.coverage [COV] AXI functional coverage = 98.15%
+
+--- UVM Report Summary ---
+UVM_INFO :  114
+UVM_WARNING :    0
+UVM_ERROR :    0
+UVM_FATAL :    0
+
+--- VCS Simulation Report ---
+Time: 1925000 ps
+CPU Time: 0.520 seconds
+Fri Oct 16 17:23:05 2026
+
+This is a selected result excerpt, not the full 192-line raw simulation log.
