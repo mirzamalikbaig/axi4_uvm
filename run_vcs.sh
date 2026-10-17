@@ -11,7 +11,7 @@ if ! command -v vcs >/dev/null 2>&1; then
   exit 127
 fi
 
-vcs -full64 -sverilog -ntb_opts uvm-1.2 -top top \
+vcs -full64 -sverilog -timescale=1ns/1ps -ntb_opts uvm-1.2 -top top \
   tb_top.sv axi_mem_slave.sv -o simv
 
 ./simv +UVM_TESTNAME=axi_test "$@"
