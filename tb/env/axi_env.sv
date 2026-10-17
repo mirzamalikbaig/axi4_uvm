@@ -1,3 +1,11 @@
+/******************************************************************************
+*** AXI4 UVM Verification                                                 ***
+*** Author: Mirza Agha Malik Baig                                         ***
+*** Updated: October 2026                                                 ***
+*** Filename: axi_env.sv                                                  ***
+*** Description: Connects agent, scoreboard, and coverage subscriber.     ***
+******************************************************************************/
+
 class axi_env extends uvm_env;
 
   `uvm_component_utils(axi_env)

@@ -1,3 +1,11 @@
+/******************************************************************************
+*** AXI4 UVM Verification                                                 ***
+*** Author: Mirza Agha Malik Baig                                         ***
+*** Updated: October 2026                                                 ***
+*** Filename: axi_scoreboard.sv                                           ***
+*** Description: Models expected memory contents and checks reads.        ***
+******************************************************************************/
+
 class axi_scoreboard extends uvm_scoreboard;
 
   `uvm_component_utils(axi_scoreboard)

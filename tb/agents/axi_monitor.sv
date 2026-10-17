@@ -1,3 +1,11 @@
+/******************************************************************************
+*** AXI4 UVM Verification                                                 ***
+*** Author: Mirza Agha Malik Baig                                         ***
+*** Updated: October 2026                                                 ***
+*** Filename: axi_monitor.sv                                              ***
+*** Description: Reconstructs observed AXI bus transactions.              ***
+******************************************************************************/
+
 class axi_monitor extends uvm_monitor;
 
   `uvm_component_utils(axi_monitor)

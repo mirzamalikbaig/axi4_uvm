@@ -1,97 +1,139 @@
-# AXI4 UVM Verification Project
+# AXI4 UVM Verification
 
-This repository contains a basic SystemVerilog/UVM testbench for a simple AXI4 memory-mapped slave. The project is being developed incrementally: the current goal is to run and understand the basic write/read path, then expand protocol coverage.
+A SystemVerilog/UVM verification environment for an educational **AXI4 memory-mapped slave**. The project implements an AXI4 master-side UVM testbench, a memory-slave DUT, protocol stability assertions, functional coverage, and a reference-memory scoreboard. The completed directed suite contains **12 verification scenarios**.
 
-## Project goal
+**Status:** Completed at the defined project scope. The testbench was successfully simulated with **Synopsys VCS (UVM 1.2)** on October 16, 2026.
 
-The testbench generates AXI4 transactions, drives them through an interface, observes completed bus transactions, and checks read data against a reference-memory model in the scoreboard.
+## Verified results
 
-The intended transaction flow is:
+| Measurement | Recorded result |
+| --- | --- |
+| Functional coverage (SystemVerilog covergroup) | **98.15%** |
+| UVM errors / warnings / fatals | **0 / 0 / 0** |
+| URG module-definition coverage score | **66.04%** |
+| URG line coverage | **91.79%** |
+| URG condition / branch / toggle coverage | **68.66% / 74.51% / 34.13%** |
+| URG assertion coverage | **61.11%** |
+| Completed directed scenarios | **12** |
 
-```text
-Sequence → Sequencer → Driver → AXI Interface → DUT → Monitor → Scoreboard
-```
+The functional-coverage percentage and the URG score are **different metrics**. These results are from the completed VCS run, not evidence of a multi-seed regression. The regression script is supplied for repeatable runs.
 
 ## Verification architecture
 
-- **Sequence** creates directed and constrained-random AXI transactions.
-- **Sequencer** passes sequence items to the driver.
-- **Driver** drives the AXI signals and collects responses.
-- **Monitor** observes handshakes and publishes completed transactions.
-- **Scoreboard** keeps reference memory and compares read data.
-- **Agent** contains the sequencer, driver, and monitor.
-- **Environment** builds the agent and scoreboard and connects the monitor analysis port.
-- **Test** builds the environment, starts the sequence, and controls the UVM objection.
-- **Top-level testbench** creates the clock and reset, configures the virtual interface, instantiates the DUT, and starts UVM.
+```text
+                        AXI4 UVM Test
+                              |
+                           Sequence
+                              |
+                           Sequencer
+                              |
+                            Driver
+                              |
+                        AXI Interface  <------>  AXI4 Memory Slave (DUT)
+                              |
+                            Monitor
+                              |
+                 +------------+-------------+
+                 |                          |
+             Scoreboard               Functional Coverage
+         (reference memory)              (covergroups)
+```
 
-## Current status
+The test configures a virtual AXI interface. The **sequencer** sends transaction items to the **driver**; the driver performs bus handshakes with the memory slave. The **monitor** independently reconstructs accepted transactions and broadcasts them to the **scoreboard** and the **coverage subscriber**.
 
-The current directed suite verifies basic read/write operation, two outstanding reads and writes, same-ID ordering, different-ID out-of-order completion, write readback, and a four-beat WRAP burst. The WRAP test starts at address `12` with `SIZE=2` and `LEN=3`, exercising the address order `12 -> 0 -> 4 -> 8`.
+## Implemented features
 
-The monitor reconstructs completed transactions, the scoreboard maintains a byte-addressable reference memory, and write commits are kept in original AW/W order even when B responses return out of order across different IDs.
+- AXI4 **AW, W, B, AR, and R** channels with VALID/READY handshakes.
+- 32-bit data bus with 32-bit addresses and 4-bit transaction IDs.
+- Byte-addressable memory and byte-lane writes controlled by **WSTRB**.
+- **FIXED, INCR, and WRAP** burst-address generation; single- and multi-beat transfers.
+- Up to **two outstanding reads and two outstanding writes**.
+- Same-ID ordering and different-ID out-of-order completion in the educational slave model.
+- AXI4 write data associated with the oldest pending write address (there is no WID in AXI4).
+- Independent scoreboard reference memory, per-beat read-data comparisons, and checks of OKAY responses.
+- Write commits held in original AW/W order even when B responses arrive out of order.
+- Assertions checking payload/VALID stability on AW, W, AR, B, and R channels when stalled.
+- Functional coverpoints and crosses for operation, burst type, burst length, ID range, size, and response.
 
-Protocol assertions now check VALID/payload stability during stalls, functional coverage samples completed transactions, and `regression.sh` runs the test across several seeds.
+## Completed test scenarios
 
-## Project files
+| # | Scenario | What the test demonstrates |
+| --- | --- | --- |
+| 1 | Memory setup | Two writes initialize known memory values. |
+| 2 | Different-ID read | Two outstanding reads can return in a different ID order. |
+| 3 | Same-ID read | Responses with the same ID preserve request ordering. |
+| 4 | Different-ID write | Two writes can return B responses out of order across IDs. |
+| 5 | Same-ID write | B responses for the same ID remain ordered. |
+| 6 | Write readback | Reads match previously written data. |
+| 7 | WRAP write | Four beats visit addresses 12, 0, 4, and 8. |
+| 8 | WRAP read | The scoreboard verifies each WRAP read beat. |
+| 9 | FIXED write | Four writes target one address; a single-beat FIXED write also runs. |
+| 10 | FIXED read | Repeated-address data and the single-beat FIXED result are checked. |
+| 11 | Multi-beat INCR write | Four beats write addresses 900, 904, 908, and 912. |
+| 12 | Multi-beat INCR read | Four returned words match the reference memory. |
 
-- `tb_top.sv` — Top module, clock/reset, virtual-interface setup, DUT instance, and UVM startup. It includes the UVM testbench source files.
-- `axi_if.sv` — AXI interface signals.
-- `axi_mem_slave.sv` — Simple byte-addressable memory slave used as the DUT.
-- `axi_txn.sv` — AXI transaction item.
-- `axi_sequence.sv` — Directed and constrained-random stimulus.
-- `axi_sequencer.sv` — UVM sequencer.
-- `axi_driver.sv` — Drives AXI requests and accepts responses.
-- `axi_monitor.sv` — Observes AXI handshakes and publishes transactions.
-- `axi_scoreboard.sv` — Reference-memory model, WRAP address prediction, and read-data checks.
-- `axi_assertions.sv` — AXI VALID/READY stall-stability assertions.
-- `axi_coverage.sv` — Functional coverage subscriber for operation, burst, length, ID, and response behavior.
-- `axi_agent.sv` — Groups the sequencer, driver, and monitor.
-- `axi_env.sv` — Builds and connects the agent and scoreboard.
-- `axi_test.sv` — Creates the environment and starts the sequence.
-- `run_vcs.sh` — Compiles and runs the UVM test with Synopsys VCS.
-- `docs/axi4_uvm_basic_test_result.png` — EDA Playground result screenshot.
+All 12 scenarios completed in the recorded VCS simulation with zero UVM errors. The 12 scenarios are executed by one `axi_test` class through the `axi_sequence` scenario selector.
+
+## Repository structure
+
+```text
+axi4_uvm/
+├── rtl/                       AXI4 memory slave DUT
+│   └── axi_mem_slave.sv
+├── tb/
+│   ├── agents/                Transaction, agent, sequencer, driver, monitor
+│   ├── coverages/             Functional coverage collector
+│   ├── env/                   Environment and reference-memory scoreboard
+│   ├── interfaces/            AXI4 signal interface
+│   ├── sequences/             All twelve stimulus scenarios
+│   ├── sva/                   AXI protocol assertions
+│   ├── tests/                 UVM test class
+│   └── top/                   Clock, reset, DUT, and UVM top
+├── scripts/
+│   ├── filelist.f             VCS compilation file list
+│   ├── run_vcs.sh             Compile and run test
+│   ├── regression.sh          Five-seed regression
+│   └── coverage.sh            Collect coverage and generate URG HTML
+├── docs/                      Project screenshots
+├── run_vcs.sh                 Easy command from repository root
+├── regression.sh              Easy command from repository root
+├── coverage.sh                Easy command from repository root
+└── README.md
+```
 
 ## Run with Synopsys VCS
 
-The project includes `run_vcs.sh`, which compiles the testbench with VCS and runs the `axi_test` UVM test. Run it from the repository root on a machine with Synopsys VCS and UVM support:
+Run the following **from the repository root**, on a host with Synopsys VCS/UVM 1.2 enabled:
 
 ```bash
-command -v vcs
-vcs -ID
 ./run_vcs.sh
 ```
 
-The script compiles `tb_top.sv` and `axi_mem_slave.sv`. The UVM source files are included by `tb_top.sv`, so they are not listed separately. Extra simulator arguments can be passed after the script name, for example:
+The script saves compilation and simulation logs to `results/logs/`. You may also pass simulator plusargs to `./run_vcs.sh`.
+
+For a five-seed regression (seeds 1, 10, 25, 50, 100):
 
 ```bash
-./run_vcs.sh +UVM_VERBOSITY=UVM_HIGH
+./regression.sh
+cat results/regression/regression_summary.txt
 ```
 
-The script uses the VCS UVM 1.2 option. If the installed VCS setup uses another UVM version, update the option in `run_vcs.sh`.
+For VCS and URG coverage:
 
-## Current limitations
+```bash
+./coverage.sh
+```
 
-- The verification DUT is an educational memory slave, not a production AXI4 implementation.
-- The implemented outstanding depth is intentionally limited to two reads and two writes.
-- Directed INCR and WRAP scenarios are included. FIXED address behavior exists in the DUT/reference model, but a dedicated directed FIXED test is still a coverage hole.
-- Narrow and unaligned transfers are outside the current completed scope.
-- The AXI 4 KB boundary rule is not yet implemented.
-- Error-response injection/negative testing is not yet part of the directed suite.
-- The current regression is mostly directed, so changing the random seed does not yet create substantially different traffic.
+The URG HTML report is generated at `results/reports/coverage/dashboard.html`. Open the report **after extracting the full report folder** so its linked files load. The generated `results/` directory and VCS build files are excluded from Git.
 
-## Next steps
+## Project evidence and source
 
-1. Run `./regression.sh` and review the per-seed logs and functional-coverage report.
-2. Add a small FIXED directed test if burst-type coverage closure is required.
-3. Optionally add the 4 KB boundary rule if project time permits.
-4. Capture final regression/coverage results for the project report and presentation.
+- [Basic simulation screenshot](docs/axi4_uvm_basic_test_result.png)
+- Detailed bus checking: `tb/env/axi_scoreboard.sv`
+- Directed scenarios: `tb/sequences/axi_sequence.sv`
+- Functional coverage: `tb/coverages/axi_coverage.sv`
+- Assertions: `tb/sva/axi_assertions.sv`
 
-1. Run the basic test with Synopsys VCS.
-2. Add directed tests for more addresses, data values, and byte strobes.
-3. Expand burst handling and scoreboard checks.
-4. Add assertions, functional coverage, and regression tests.
+**Author:** Mirza Agha Malik Baig
 
-## References
-
-- [Arm AMBA AXI and ACE Protocol Specification](https://developer.arm.com/documentation/ihi0022/latest/)
-- [AXI Protocol — VLSI Verify](https://vlsiverify.com/protocols/axi/)
+**Reference:** Arm AMBA AXI/ACE protocol specification (AXI4).

@@ -1,3 +1,11 @@
+/******************************************************************************
+*** AXI4 UVM Verification                                                 ***
+*** Author: Mirza Agha Malik Baig                                         ***
+*** Updated: October 2026                                                 ***
+*** Filename: axi_sequence.sv                                             ***
+*** Description: Generates twelve directed verification scenarios.        ***
+******************************************************************************/
+
 class axi_sequence extends uvm_sequence #(axi_txn);
 
   `uvm_object_utils(axi_sequence)

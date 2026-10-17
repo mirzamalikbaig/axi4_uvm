@@ -1,3 +1,11 @@
+/******************************************************************************
+*** AXI4 UVM Verification                                                 ***
+*** Author: Mirza Agha Malik Baig                                         ***
+*** Updated: October 2026                                                 ***
+*** Filename: axi_if.sv                                                   ***
+*** Description: Declares AXI4 AW, W, B, AR, and R interface signals.     ***
+******************************************************************************/
+
 interface axi_if #(
     parameter int ADDR_WIDTH = 32,
     parameter int DATA_WIDTH = 32,

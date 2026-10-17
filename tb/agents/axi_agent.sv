@@ -1,3 +1,11 @@
+/******************************************************************************
+*** AXI4 UVM Verification                                                 ***
+*** Author: Mirza Agha Malik Baig                                         ***
+*** Updated: October 2026                                                 ***
+*** Filename: axi_agent.sv                                                ***
+*** Description: Creates and connects driver, monitor, and sequencer.     ***
+******************************************************************************/
+
 class axi_agent extends uvm_agent;
 
   `uvm_component_utils(axi_agent)

@@ -1,3 +1,11 @@
+/******************************************************************************
+*** AXI4 UVM Verification                                                 ***
+*** Author: Mirza Agha Malik Baig                                         ***
+*** Updated: October 2026                                                 ***
+*** Filename: tb_top.sv                                                   ***
+*** Description: Instantiates DUT, interface, clock, reset, and UVM test. ***
+******************************************************************************/
+
 `timescale 1ns/1ps
 `include "uvm_macros.svh"
 import uvm_pkg::*;

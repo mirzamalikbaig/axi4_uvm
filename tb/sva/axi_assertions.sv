@@ -1,3 +1,11 @@
+/******************************************************************************
+*** AXI4 UVM Verification                                                 ***
+*** Author: Mirza Agha Malik Baig                                         ***
+*** Updated: October 2026                                                 ***
+*** Filename: axi_assertions.sv                                           ***
+*** Description: Checks payload stability during VALID/READY stalls.      ***
+******************************************************************************/
+
 module axi_assertions(axi_if axi);
 
   // keep AW stable while the slave is not ready

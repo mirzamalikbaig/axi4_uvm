@@ -1,11 +1,20 @@
-# Synopsys VCS generated build and simulation files
+# Synopsys VCS simulation/build outputs
 /csrc/
 /simv
 /simv.daidir/
+/simv.vdb/
+/DVEfiles/
+/urgReport/
 /ucli.key
 /vc_hdrs.h
 /*.log
-
-# Regression and coverage outputs
-/logs/
 /*.vdb/
+/*.vpd
+/*.fsdb
+
+# Regression, logs, and coverage outputs
+/results/
+/logs/
+/mentor_submission/
+/axi4_results.tar.gz
+/axi4_results.zip

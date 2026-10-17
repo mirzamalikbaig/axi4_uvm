@@ -1,3 +1,11 @@
+/******************************************************************************
+*** AXI4 UVM Verification                                                 ***
+*** Author: Mirza Agha Malik Baig                                         ***
+*** Updated: October 2026                                                 ***
+*** Filename: axi_coverage.sv                                             ***
+*** Description: Samples AXI operation, burst, length, ID, and response coverage. ***
+******************************************************************************/
+
 class axi_coverage extends uvm_subscriber #(axi_txn);
 
   `uvm_component_utils(axi_coverage)

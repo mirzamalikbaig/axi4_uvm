@@ -1,3 +1,11 @@
+/******************************************************************************
+*** AXI4 UVM Verification                                                 ***
+*** Author: Mirza Agha Malik Baig                                         ***
+*** Updated: October 2026                                                 ***
+*** Filename: axi_test.sv                                                 ***
+*** Description: Runs the twelve scenarios and manages UVM objections.    ***
+******************************************************************************/
+
 class axi_test extends uvm_test;
 
   `uvm_component_utils(axi_test)

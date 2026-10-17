@@ -1,3 +1,11 @@
+/******************************************************************************
+*** AXI4 UVM Verification                                                 ***
+*** Author: Mirza Agha Malik Baig                                         ***
+*** Updated: October 2026                                                 ***
+*** Filename: axi_txn.sv                                                  ***
+*** Description: Defines AXI transaction fields and item constraints.     ***
+******************************************************************************/
+
 class axi_txn extends uvm_sequence_item;
 
   // Transaction type
