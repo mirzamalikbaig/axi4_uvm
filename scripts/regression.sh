@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ****************************************************************************
 # AXI4 UVM Verification
-# Author      : Mirza Agha Malik Baig
+# Author      : Agha Malik Baig Mirza
 # Updated     : October 2026
 # Filename    : scripts/regression.sh
 # Description : Runs the AXI4 test with five seeds and records results.

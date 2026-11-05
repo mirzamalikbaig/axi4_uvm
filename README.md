@@ -134,6 +134,6 @@ The URG HTML report is generated at `results/reports/coverage/dashboard.html`. O
 - Functional coverage: `tb/coverages/axi_coverage.sv`
 - Assertions: `tb/sva/axi_assertions.sv`
 
-**Author:** Mirza Agha Malik Baig
+**Author:** Agha Malik Baig Mirza
 
 **Reference:** Arm AMBA AXI/ACE protocol specification (AXI4).

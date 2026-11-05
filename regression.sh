@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ****************************************************************************
 # AXI4 UVM Verification
-# Author      : Mirza Agha Malik Baig
+# Author      : Agha Malik Baig Mirza
 # Updated     : October 2026
 # Filename    : regression.sh
 # Description : Root entry point for the five-seed regression.

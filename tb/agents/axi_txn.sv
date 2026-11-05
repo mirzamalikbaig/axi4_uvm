@@ -1,6 +1,6 @@
 /******************************************************************************
 *** AXI4 UVM Verification                                                 ***
-*** Author: Mirza Agha Malik Baig                                         ***
+*** Author: Agha Malik Baig Mirza                                         ***
 *** Updated: October 2026                                                 ***
 *** Filename: axi_txn.sv                                                  ***
 *** Description: Defines AXI transaction fields and item constraints.     ***

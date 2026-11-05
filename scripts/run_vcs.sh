@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ****************************************************************************
 # AXI4 UVM Verification
-# Author      : Mirza Agha Malik Baig
+# Author      : Agha Malik Baig Mirza
 # Updated     : October 2026
 # Filename    : scripts/run_vcs.sh
 # Description : Compiles and runs the AXI4 UVM test on Synopsys VCS.

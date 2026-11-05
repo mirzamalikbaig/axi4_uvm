@@ -1,6 +1,6 @@
 /******************************************************************************
 *** AXI4 UVM Verification                                                 ***
-*** Author: Mirza Agha Malik Baig                                         ***
+*** Author: Agha Malik Baig Mirza                                         ***
 *** Updated: October 2026                                                 ***
 *** Filename: axi_mem_slave.sv                                            ***
 *** Description: Implements the AXI4 byte-addressable memory slave DUT.   ***
