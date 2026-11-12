@@ -42,7 +42,7 @@ for seed in "${SEEDS[@]}"; do
   if [[ "$sim_rc" -eq 0 ]] \
     && grep -Eq 'UVM_ERROR[[:space:]]*:[[:space:]]*0([[:space:]]|$)' "$log" \
     && grep -Eq 'UVM_FATAL[[:space:]]*:[[:space:]]*0([[:space:]]|$)' "$log" \
-    && grep -q 'All AXI READ, WRITE, WRAP, FIXED and multi-beat INCR tests completed' "$log"; then
+    && grep -q 'All AXI tests including partial WSTRB and backpressure completed' "$log"; then
     echo "SEED $seed: PASS" | tee -a "$summary"
     pass_count=$((pass_count + 1))
   else

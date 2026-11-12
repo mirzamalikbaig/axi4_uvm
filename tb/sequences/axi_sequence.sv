@@ -36,11 +36,17 @@ class axi_sequence extends uvm_sequence #(axi_txn);
 
     INCR_MULTI_WRITE,
 
-    INCR_MULTI_READ
+    INCR_MULTI_READ,
+
+    PARTIAL_STROBE_WRITE,
+    PARTIAL_STROBE_READ,
+    BACKPRESSURE_WRITE,
+    BACKPRESSURE_READ
 
   } scenario_e;
 
   scenario_e scenario;
+  int unsigned strobe_step = 0;
 
   // CONSTRUCTOR
 
@@ -161,6 +167,27 @@ class axi_sequence extends uvm_sequence #(axi_txn);
 
     finish_item(txn);
 
+  endtask
+
+  // Send an aligned 32-bit write with a selected WSTRB mask.
+  task send_masked_write(string req_name,
+                         bit [31:0] req_data,
+                         bit [3:0] req_mask);
+    axi_txn item;
+    item = axi_txn::type_id::create(req_name);
+    start_item(item);
+    if (!item.randomize() with {
+      op == axi_txn::AXI_WRITE;
+      id == 4'd1;
+      addr == 32'd1000;
+      len == 0;
+      size == 2;
+      burst == axi_txn::INCR;
+      write_data[0] == req_data;
+      wstrb[0] == req_mask;
+    })
+      `uvm_fatal("SEQ", "Partial WSTRB randomization failed")
+    finish_item(item);
   endtask
 
   // BODY
@@ -628,6 +655,30 @@ class axi_sequence extends uvm_sequence #(axi_txn);
 
         finish_item(txn);
 
+      end
+
+      // Partial writes are followed by a separate read after
+      // each completion, so all four memory states get checked.
+      PARTIAL_STROBE_WRITE: begin
+        case (strobe_step)
+          0: send_masked_write("strobe_init", 32'hAABBCCDD, 4'b1111);
+          1: send_masked_write("strobe_byte0", 32'h11223344, 4'b0001);
+          2: send_masked_write("strobe_middle", 32'h55667788, 4'b0110);
+          3: send_masked_write("strobe_high", 32'h99AABBCC, 4'b1000);
+          default: `uvm_fatal("SEQ", "Unknown partial-strobe step")
+        endcase
+      end
+
+      PARTIAL_STROBE_READ: begin
+        send_single_read("strobe_readback", 4'd2, 32'd1000);
+      end
+
+      BACKPRESSURE_WRITE: begin
+        send_single_write("stall_write", 4'd3, 32'd1200, 32'hCAFEBABE);
+      end
+
+      BACKPRESSURE_READ: begin
+        send_single_read("stall_read", 4'd4, 32'd1200);
       end
 
       // UNKNOWN SCENARIO

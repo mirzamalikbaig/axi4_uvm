@@ -359,11 +359,48 @@ class axi_test extends uvm_test;
       UVM_LOW
     )
 
+    // FINAL TEST 1: PARTIAL WRITE STROBES
+    // Readback after each write verifies these complete words:
+    // AABBCCDD, AABBCC44, AA667744, 99667744.
+    `uvm_info("TEST", "Starting partial WSTRB test", UVM_LOW)
+    for (int unsigned step = 0; step < 4; step++) begin
+      seq.strobe_step = step;
+      seq.scenario = axi_sequence::PARTIAL_STROBE_WRITE;
+      seq.start(env.agent.sequencer);
+      env.agent.driver.wait_for_writes_done();
+      seq.scenario = axi_sequence::PARTIAL_STROBE_READ;
+      seq.start(env.agent.sequencer);
+      env.agent.driver.wait_for_reads_done();
+    end
+    `uvm_info("TEST", "Partial WSTRB test completed", UVM_LOW)
+
+    // FINAL TEST 2: REAL BACKPRESSURE ON ALL FIVE CHANNELS
+    `uvm_info("TEST", "Starting five-channel backpressure test", UVM_LOW)
+    env.agent.driver.enable_backpressure();
+
+    // Let the R and B collectors lower READY before stimulus.
+    repeat (2) @(posedge env.agent.driver.vif.aclk);
+
+    seq.scenario = axi_sequence::BACKPRESSURE_WRITE;
+    seq.start(env.agent.sequencer);
+    env.agent.driver.wait_for_writes_done();
+
+    seq.scenario = axi_sequence::BACKPRESSURE_READ;
+    seq.start(env.agent.sequencer);
+    env.agent.driver.wait_for_reads_done();
+
+    if (!env.agent.driver.b_stall_finished ||
+        !env.agent.driver.r_stall_finished)
+      `uvm_error("TEST", "Response backpressure was not exercised")
+
+    env.agent.driver.disable_backpressure();
+    `uvm_info("TEST", "Five-channel backpressure test completed", UVM_LOW)
+
     // FINISHED
 
     `uvm_info(
       "TEST",
-      "All AXI READ, WRITE, WRAP, FIXED and multi-beat INCR tests completed",
+      "All AXI tests including partial WSTRB and backpressure completed",
       UVM_LOW
     )
 

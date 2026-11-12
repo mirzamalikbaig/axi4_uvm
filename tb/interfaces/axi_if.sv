@@ -64,4 +64,8 @@ interface axi_if #(
     logic                  rvalid;
     logic                  rready;
 
+    // TESTBENCH-ONLY CONTROL (not an AXI4 protocol signal).
+    // When set, the educational DUT delays AWREADY, WREADY, ARREADY.
+    logic tb_stall_ready = 1'b0;
+
 endinterface

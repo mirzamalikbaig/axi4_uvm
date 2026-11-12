@@ -22,6 +22,29 @@ class axi_driver extends uvm_driver #(axi_txn);
   localparam int MAX_OUTSTANDING_READS  = 2;
   localparam int MAX_OUTSTANDING_WRITES = 2;
 
+  // Backpressure is enabled only for the final directed scenario.
+  bit enable_request_stalls = 0;
+  bit enable_response_stalls = 0;
+  int r_stall_cycles = 0;
+  int b_stall_cycles = 0;
+  bit r_stall_finished = 0;
+  bit b_stall_finished = 0;
+
+  task enable_backpressure();
+    enable_request_stalls = 1;
+    enable_response_stalls = 1;
+    r_stall_cycles = 0;
+    b_stall_cycles = 0;
+    r_stall_finished = 0;
+    b_stall_finished = 0;
+  endtask
+
+  task disable_backpressure();
+    enable_request_stalls = 0;
+    enable_response_stalls = 0;
+    vif.tb_stall_ready <= 0;
+  endtask
+
   function new(
     string name = "axi_driver",
     uvm_component parent = null
@@ -111,6 +134,7 @@ class axi_driver extends uvm_driver #(axi_txn);
     vif.arvalid <= 1'b0;
 
     vif.rready  <= 1'b0;
+    vif.tb_stall_ready <= 1'b0;
 
     outstanding_reads  = 0;
     outstanding_writes = 0;
@@ -193,6 +217,13 @@ class axi_driver extends uvm_driver #(axi_txn);
 
     vif.awvalid <= 1'b1;
 
+    if (enable_request_stalls) begin
+      vif.tb_stall_ready <= 1'b1;
+      repeat (3) @(posedge vif.aclk);
+      vif.tb_stall_ready <= 1'b0;
+      `uvm_info("BKP", "AW channel held for three cycles", UVM_LOW)
+    end
+
     do begin
 
       @(posedge vif.aclk);
@@ -241,6 +272,13 @@ class axi_driver extends uvm_driver #(axi_txn);
 
       vif.wvalid <= 1'b1;
 
+      if (enable_request_stalls) begin
+        vif.tb_stall_ready <= 1'b1;
+        repeat (3) @(posedge vif.aclk);
+        vif.tb_stall_ready <= 1'b0;
+        `uvm_info("BKP", "W channel held for three cycles", UVM_LOW)
+      end
+
       do begin
 
         @(posedge vif.aclk);
@@ -283,6 +321,13 @@ class axi_driver extends uvm_driver #(axi_txn);
 
     vif.arvalid <= 1'b1;
 
+    if (enable_request_stalls) begin
+      vif.tb_stall_ready <= 1'b1;
+      repeat (3) @(posedge vif.aclk);
+      vif.tb_stall_ready <= 1'b0;
+      `uvm_info("BKP", "AR channel held for three cycles", UVM_LOW)
+    end
+
     do begin
 
       @(posedge vif.aclk);
@@ -303,6 +348,21 @@ class axi_driver extends uvm_driver #(axi_txn);
     forever begin
 
       @(posedge vif.aclk);
+
+      if (enable_response_stalls && !r_stall_finished) begin
+        if (vif.rvalid) begin
+          r_stall_cycles++;
+          if (r_stall_cycles >= 3) begin
+            vif.rready <= 1'b1;
+            r_stall_finished = 1;
+            `uvm_info("BKP", "R channel stalled for three cycles", UVM_LOW)
+          end
+        end
+        else
+          vif.rready <= 1'b0;
+      end
+      else
+        vif.rready <= 1'b1;
 
       if (
         vif.rvalid &&
@@ -350,6 +410,21 @@ class axi_driver extends uvm_driver #(axi_txn);
     forever begin
 
       @(posedge vif.aclk);
+
+      if (enable_response_stalls && !b_stall_finished) begin
+        if (vif.bvalid) begin
+          b_stall_cycles++;
+          if (b_stall_cycles >= 3) begin
+            vif.bready <= 1'b1;
+            b_stall_finished = 1;
+            `uvm_info("BKP", "B channel stalled for three cycles", UVM_LOW)
+          end
+        end
+        else
+          vif.bready <= 1'b0;
+      end
+      else
+        vif.bready <= 1'b1;
 
       if (
         vif.bvalid &&

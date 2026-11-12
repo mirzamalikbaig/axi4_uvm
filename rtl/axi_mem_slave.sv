@@ -282,6 +282,7 @@ module axi_mem_slave #(
 
     axi.awready =
       axi.aresetn &&
+      !axi.tb_stall_ready &&
       (
         !wr_valid[0] ||
         !wr_valid[1]
@@ -291,12 +292,14 @@ module axi_mem_slave #(
 
     axi.wready =
       axi.aresetn &&
+      !axi.tb_stall_ready &&
       wr_w_sel_valid;
 
     // Free read slot exists
 
     axi.arready =
       axi.aresetn &&
+      !axi.tb_stall_ready &&
       (
         !rd_valid[0] ||
         !rd_valid[1]
