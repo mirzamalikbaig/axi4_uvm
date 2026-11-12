@@ -1,6 +1,6 @@
 /******************************************************************************
 *** AXI4 UVM Verification                                                 ***
-*** Author: Mirza Agha Malik Baig                                         ***
+*** Author: Agha Malik Baig Mirza                                         ***
 *** Updated: October 2026                                                 ***
 *** Filename: axi_mem_slave.sv                                            ***
 *** Description: Implements the AXI4 byte-addressable memory slave DUT.   ***
@@ -282,6 +282,7 @@ module axi_mem_slave #(
 
     axi.awready =
       axi.aresetn &&
+      !axi.tb_stall_ready &&
       (
         !wr_valid[0] ||
         !wr_valid[1]
@@ -291,12 +292,14 @@ module axi_mem_slave #(
 
     axi.wready =
       axi.aresetn &&
+      !axi.tb_stall_ready &&
       wr_w_sel_valid;
 
     // Free read slot exists
 
     axi.arready =
       axi.aresetn &&
+      !axi.tb_stall_ready &&
       (
         !rd_valid[0] ||
         !rd_valid[1]

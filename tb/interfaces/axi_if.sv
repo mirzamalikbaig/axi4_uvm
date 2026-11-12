@@ -1,6 +1,6 @@
 /******************************************************************************
 *** AXI4 UVM Verification                                                 ***
-*** Author: Mirza Agha Malik Baig                                         ***
+*** Author: Agha Malik Baig Mirza                                         ***
 *** Updated: October 2026                                                 ***
 *** Filename: axi_if.sv                                                   ***
 *** Description: Declares AXI4 AW, W, B, AR, and R interface signals.     ***
@@ -63,5 +63,9 @@ interface axi_if #(
     logic                  rlast;
     logic                  rvalid;
     logic                  rready;
+
+    // TESTBENCH-ONLY CONTROL (not an AXI4 protocol signal).
+    // When set, the educational DUT delays AWREADY, WREADY, ARREADY.
+    logic tb_stall_ready = 1'b0;
 
 endinterface

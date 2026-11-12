@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ****************************************************************************
 # AXI4 UVM Verification
-# Author      : Mirza Agha Malik Baig
+# Author      : Agha Malik Baig Mirza
 # Updated     : October 2026
 # Filename    : scripts/regression.sh
 # Description : Runs the AXI4 test with five seeds and records results.
@@ -42,7 +42,7 @@ for seed in "${SEEDS[@]}"; do
   if [[ "$sim_rc" -eq 0 ]] \
     && grep -Eq 'UVM_ERROR[[:space:]]*:[[:space:]]*0([[:space:]]|$)' "$log" \
     && grep -Eq 'UVM_FATAL[[:space:]]*:[[:space:]]*0([[:space:]]|$)' "$log" \
-    && grep -q 'All AXI READ, WRITE, WRAP, FIXED and multi-beat INCR tests completed' "$log"; then
+    && grep -q 'All AXI tests including partial WSTRB and backpressure completed' "$log"; then
     echo "SEED $seed: PASS" | tee -a "$summary"
     pass_count=$((pass_count + 1))
   else

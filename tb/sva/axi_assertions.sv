@@ -1,6 +1,6 @@
 /******************************************************************************
 *** AXI4 UVM Verification                                                 ***
-*** Author: Mirza Agha Malik Baig                                         ***
+*** Author: Agha Malik Baig Mirza                                         ***
 *** Updated: October 2026                                                 ***
 *** Filename: axi_assertions.sv                                           ***
 *** Description: Checks payload stability during VALID/READY stalls.      ***
@@ -57,5 +57,27 @@ module axi_assertions(axi_if axi);
   endproperty
 
   a_b_stable: assert property (p_b_stable);
+
+  // Confirm actual stalls, not merely vacuous assertion passes.
+  c_aw_stall: cover property (
+    @(posedge axi.aclk) disable iff (!axi.aresetn)
+    axi.awvalid && !axi.awready
+  );
+  c_w_stall: cover property (
+    @(posedge axi.aclk) disable iff (!axi.aresetn)
+    axi.wvalid && !axi.wready
+  );
+  c_ar_stall: cover property (
+    @(posedge axi.aclk) disable iff (!axi.aresetn)
+    axi.arvalid && !axi.arready
+  );
+  c_r_stall: cover property (
+    @(posedge axi.aclk) disable iff (!axi.aresetn)
+    axi.rvalid && !axi.rready
+  );
+  c_b_stall: cover property (
+    @(posedge axi.aclk) disable iff (!axi.aresetn)
+    axi.bvalid && !axi.bready
+  );
 
 endmodule
