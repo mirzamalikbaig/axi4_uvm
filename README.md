@@ -1,10 +1,12 @@
 # AXI4 UVM Verification
 
-A SystemVerilog/UVM verification environment for an educational **AXI4 memory-mapped slave**. The project implements an AXI4 master-side UVM testbench, a memory-slave DUT, protocol stability assertions, functional coverage, and a reference-memory scoreboard. The completed directed suite contains **12 verification scenarios**.
+A SystemVerilog/UVM verification environment for an educational **AXI4 memory-mapped slave**. The project implements an AXI4 master-side UVM testbench, a memory-slave DUT, protocol stability assertions, functional coverage, and a reference-memory scoreboard. The test contains **12 original directed scenarios**, followed by focused final checks for **partial write strobes (WSTRB)** and **VALID/READY backpressure on all five AXI4 channels**.
 
-**Status:** Completed at the defined project scope. The testbench was successfully simulated with **Synopsys VCS (UVM 1.2)** on October 16, 2026.
+**Status:** Final verification additions were committed to `main` in November 2026. The updated code has been validated on the university VCS setup according to the project run; the latest detailed VCS/URG output has not been committed to this repository. The archived numerical results below are from the original October 16, 2026 simulation and must not be treated as the new final-run coverage.
 
-## Verified results
+For the implementation details and final-run checks, see [Final verification notes](docs/final_verification_notes.md).
+
+## Archived measured results: October 16, 2026 baseline
 
 | Measurement | Recorded result |
 | --- | --- |
@@ -13,10 +15,12 @@ A SystemVerilog/UVM verification environment for an educational **AXI4 memory-ma
 | URG module-definition coverage score | **66.04%** |
 | URG line coverage | **91.79%** |
 | URG condition / branch / toggle coverage | **68.66% / 74.51% / 34.13%** |
-| URG assertion coverage | **61.11%** |
-| Completed directed scenarios | **12** |
+| URG assertion coverage (18 total instrumented assertions) | **61.11%** |
+| Completed baseline scenarios | **12** |
 
-The functional-coverage percentage and the URG score are **different metrics**. These results are from the completed VCS run, not evidence of a multi-seed regression. The regression script is supplied for repeatable runs.
+The functional-coverage percentage and the URG score are **different metrics**. Crucially, the baseline's **61.11% aggregate assertion figure did not mean the five AXI4 stability assertions had been exercised**: all five had zero non-vacuous successes because no stalls occurred. That gap motivated the additional backpressure test.
+
+These measurements describe **only the 12-scenario October 16 run** (seed 1), not the November additions or a five-seed regression. The new final-run coverage percentage and assertion success counts should be copied from a saved fresh VCS/URG report, not inferred from the updated source code.
 
 ## Verification architecture
 
@@ -52,10 +56,12 @@ The test configures a virtual AXI interface. The **sequencer** sends transaction
 - AXI4 write data associated with the oldest pending write address (there is no WID in AXI4).
 - Independent scoreboard reference memory, per-beat read-data comparisons, and checks of OKAY responses.
 - Write commits held in original AW/W order even when B responses arrive out of order.
-- Assertions checking payload/VALID stability on AW, W, AR, B, and R channels when stalled.
+- Assertions checking payload/VALID stability on AW, W, AR, B, and R channels when stalled, plus **five assertion cover properties** that record actual stall conditions.
+- Directed **partial WSTRB** writes with full-word readbacks after each write.
+- Directed **backpressure** on AW, W, AR, B, and R. The educational DUT uses a test-only `tb_stall_ready` interface control to delay AWREADY, WREADY, and ARREADY; this is **not an AXI4 protocol signal**.
 - Functional coverpoints and crosses for operation, burst type, burst length, ID range, size, and response.
 
-## Completed test scenarios
+## Original 12 directed scenarios
 
 | # | Scenario | What the test demonstrates |
 | --- | --- | --- |
@@ -72,7 +78,18 @@ The test configures a virtual AXI interface. The **sequencer** sends transaction
 | 11 | Multi-beat INCR write | Four beats write addresses 900, 904, 908, and 912. |
 | 12 | Multi-beat INCR read | Four returned words match the reference memory. |
 
-All 12 scenarios completed in the recorded VCS simulation with zero UVM errors. The 12 scenarios are executed by one `axi_test` class through the `axi_sequence` scenario selector.
+All 12 original scenarios completed in the archived October 16 VCS simulation with zero UVM errors. They remain the first twelve scenarios in the updated `axi_test`.
+
+## Final verification additions (November 2026)
+
+The updated `axi_test` runs these after the original scenarios:
+
+| Addition | Stimulus and checking |
+| --- | --- |
+| **Partial WSTRB write/readback** | At address 1000, write `32'hAABBCCDD` with `1111`, then overwrite using `0001`, `0110`, and `1000`. Read back after each write; expected words are `AABBCCDD`, `AABBCC44`, `AA667744`, and `99667744`. The existing byte-addressable scoreboard checks each word. |
+| **Five-channel backpressure** | The driver/DUT create short AW, W, and AR request stalls and B and R response stalls. The existing stability assertions check that VALID and payload do not change during a stall. Five `c_*_stall` cover properties record whether each channel was stalled. |
+
+These are **two additional test groups** (implemented with four new sequence selectors: `PARTIAL_STROBE_WRITE`, `PARTIAL_STROBE_READ`, `BACKPRESSURE_WRITE`, and `BACKPRESSURE_READ`). They should not be included in the **old** 98.15% coverage measurement. See [final verification notes](docs/final_verification_notes.md) for details.
 
 ## Repository structure
 
@@ -85,7 +102,7 @@ axi4_uvm/
 │   ├── coverages/             Functional coverage collector
 │   ├── env/                   Environment and reference-memory scoreboard
 │   ├── interfaces/            AXI4 signal interface
-│   ├── sequences/             All twelve stimulus scenarios
+│   ├── sequences/             Original scenarios and final verification tests
 │   ├── sva/                   AXI protocol assertions
 │   ├── tests/                 UVM test class
 │   └── top/                   Clock, reset, DUT, and UVM top
@@ -94,7 +111,7 @@ axi4_uvm/
 │   ├── run_vcs.sh             Compile and run test
 │   ├── regression.sh          Five-seed regression
 │   └── coverage.sh            Collect coverage and generate URG HTML
-├── docs/                      Project screenshots
+├── docs/                      Screenshots and final verification notes
 ├── run_vcs.sh                 Easy command from repository root
 ├── regression.sh              Easy command from repository root
 ├── coverage.sh                Easy command from repository root
@@ -126,8 +143,13 @@ For VCS and URG coverage:
 
 The URG HTML report is generated at `results/reports/coverage/dashboard.html`. Open the report **after extracting the full report folder** so its linked files load. The generated `results/` directory and VCS build files are excluded from Git.
 
+To verify the new test results, inspect `results/logs/simulation.log` for **`Partial WSTRB test completed`** and **`Five-channel backpressure test completed`** and check the UVM error/fatal totals. Inspect the newly generated URG assertion report for actual stall cover hits and non-vacuous successes. Do not quote the archived assertion percentage as the final-run value.
+
 ## Project evidence and source
 
+- [Final verification implementation and validation notes](docs/final_verification_notes.md)
+- [Archived October 16 coverage summary](result/coverage_summary.md)
+- [Archived October 16 scenario summary](result/regression_summary.md)
 - [Basic simulation screenshot](docs/axi4_uvm_basic_test_result.png)
 - Detailed bus checking: `tb/env/axi_scoreboard.sv`
 - Directed scenarios: `tb/sequences/axi_sequence.sv`

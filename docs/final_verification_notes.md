@@ -1,40 +1,46 @@
-# Final verification additions — VCS validation pending
+# Final verification additions
 
-This review branch adds the two focused checks identified in Chapter 7.3 of the preliminary report.
+**Source:** `main` branch, November 2026. These additions follow the two tests identified in Chapter 7.3 of the graduate project's preliminary report. The updated source has been reported as validated with Synopsys VCS on the university Linux environment. **Fresh detailed final-run coverage numbers are not checked into this repository**; the figures in `result/coverage_summary.md` are historical results from October 16, 2026.
 
-## 1. Partial WSTRB
+## 1. Partial WSTRB test
 
-At word-aligned address 1000, the UVM test writes and reads back after every step. The scoreboard compares full 32-bit values:
+At word-aligned address 1000, `axi_test` performs a write and complete-word readback at every step. The existing scoreboard verifies byte enables without changing its reference memory logic.
 
-| Step | Write data | WSTRB | Expected read |
-|---|---|---|---|
-| 0 | AABBCCDD | 1111 | AABBCCDD |
-| 1 | 11223344 | 0001 | AABBCC44 |
-| 2 | 55667788 | 0110 | AA667744 |
-| 3 | 99AABBCC | 1000 | 99667744 |
+| Step | Write data | WSTRB | Expected readback |
+| --- | --- | --- | --- |
+| 0 | `AABBCCDD` | `1111` | `AABBCCDD` |
+| 1 | `11223344` | `0001` | `AABBCC44` |
+| 2 | `55667788` | `0110` | `AA667744` |
+| 3 | `99AABBCC` | `1000` | `99667744` |
 
-This exercises the existing byte-write behavior without changing the scoreboard.
+The sequence selectors are `PARTIAL_STROBE_WRITE` and `PARTIAL_STROBE_READ`. `strobe_step` selects the write pattern.
 
 ## 2. Five-channel VALID/READY backpressure
 
-- AW, W and AR: the driver raises VALID, while a test-only `tb_stall_ready` interface control makes the educational memory DUT hold READY low for three cycles, then releases it. This is a test control, **not an AXI4 protocol signal**.
-- B and R: during a final directed write/read, the driver collector deasserts BREADY/RREADY and holds each low after VALID appears, then accepts the response.
-- Existing `a_*_stable` assertions check payload stability. New `c_*_stall` cover properties detect whether each channel really experienced a VALID=1/READY=0 cycle.
+- **AW, W, AR:** the driver asserts VALID and holds it while a test-only `tb_stall_ready` control lowers the corresponding READY outputs of the educational memory-slave DUT for several cycles. This control is **not a standard AXI4 signal**.
+- **B, R:** the driver holds BREADY and RREADY low while the slave presents the response, then releases them to finish the transfer.
+- **Stability checks:** the five existing `a_*_stable` assertions check VALID and payload stability across stalled cycles. New `c_aw_stall`, `c_w_stall`, `c_ar_stall`, `c_b_stall`, and `c_r_stall` cover properties record actual stalls.
 
-The original twelve directed scenarios run first with backpressure disabled. The two additions run at the end.
+The selectors are `BACKPRESSURE_WRITE` and `BACKPRESSURE_READ`. The original twelve scenarios run first, with deliberate stalls disabled; the final tests run afterward.
 
-## Validation instructions
+## Run and collect evidence on the university server
 
-On a Linux machine with Synopsys VCS/UVM 1.2:
+From the repository root on a machine with Synopsys VCS/UVM 1.2 installed:
 
 ```bash
-git fetch origin
-git switch final-wstrb-backpressure-tests
+git pull --ff-only origin main
 ./run_vcs.sh
 ./coverage.sh
 ./regression.sh
 ```
 
-Review `results/logs/simulation.log` and `results/logs/coverage_simulation.log` for zero UVM errors/fatals and all test-completion messages; open `results/reports/coverage/dashboard.html` and inspect the user-defined assertions and cover properties.
+- Simulation logs: `results/logs/simulation.log` (single-run script) and `results/logs/coverage_simulation.log` (coverage script).
+- URG report: `results/reports/coverage/dashboard.html`.
+- Final-test log markers: `Partial WSTRB test completed`, `Five-channel backpressure test completed`, and `All AXI tests including partial WSTRB and backpressure completed`.
+- Review the UVM summary for errors/fatals and inspect the assertion report for non-vacuous successes and stall cover hits.
 
-**Not yet validated:** This review branch has not been compiled or simulated in VCS here. Do not update the preliminary report's results (98.15% functional coverage, original assertion evidence, or scenario counts) until a fresh VCS run confirms the changes.
+## Evidence scope
+
+The repository's `result/coverage_summary.md`, `result/regression_summary.md`, and `result/simulation_excerpt.log` preserve the **October 16 baseline**: 12 directed scenarios, 98.15% functional coverage, and 61.11% URG aggregate assertion coverage. **Those numbers must not be presented as measurements from the updated final tests.**
+
+The final report should use separately saved, dated VCS and URG output for the updated source when quoting final coverage percentages and assertion counts.
